@@ -1,4 +1,4 @@
 *.csv
 .vscode/
-.gz
-.html
+*.gz
+*.html

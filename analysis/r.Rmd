@@ -27,7 +27,6 @@ p_load(RColorBrewer, # color pallets
 
 ### Import data set
 ```{r}
-odf  <- read.csv("posts_berlin_2020.csv")
 df <- read.csv("posts_berlin_2020.csv")
 ```
 
@@ -35,16 +34,22 @@ df <- read.csv("posts_berlin_2020.csv")
 ```{r}
 str(df)
 
-# Convert appropriate variables to factors
-#df$airbag <- factor(df$airbag)
-
-str(df)
+df$over_18 <- as.logical(df$over_18)
+df$locked <- as.logical(df$locked)
+df$is_video <- as.logical(df$is_video)
+df$is_original_content <- as.logical(df$is_original_content)
+df$stickied <- as.logical(df$stickied)
 
 dim(df)
 ```
 
 ### Preprocess: Treat missing values, if applicable
 ```{r}
+df[df == "NULL"] <- NA
+nrow(df)
+df <- unique(df, by = "id")
+nrow(df)
+
 # Track down variables with missing values
 sum(is.na(df))
 colSums(is.na(df))
@@ -53,16 +58,23 @@ colSums(is.na(df))
 (nrow(df) - nrow(na.omit(df))) / nrow(df)
 
 
-df <- data.frame(event.date=as.Date(df$datetime))
+df$date <- as.Date(df$datetime)
+
+
 
 to_interval <- function(anchor.date, future.date, interval.days){
   round(as.integer(future.date - anchor.date) / interval.days, 0)
 }
 
 df$week_interval <- to_interval(as.Date('2020-01-01'), 
-                          df$event.date, 7 )
+                          df$date, 7 )
 
-df$month <- format(df$event.date, "%m")
+df$month <- format(df$date, "%m")
+df$month <- factor(df$month)
+
+df <- df[!(df$stickied == TRUE),]
+
+str(df)
 
 ```
 
@@ -76,10 +88,40 @@ ggplot(df, aes(factor(week_interval),fill = df$class)) +
 geom_bar(stat="count", position = "dodge") + 
 scale_fill_brewer(palette = "Set1")
 
-agg <- aggregate(odf$score, by=list(author=odf$author), FUN=sum)
-agg
+Gini(dfwi$Freq)
+
+nrow(df)
+df_with_acc <- na.omit(df)
+nrow(df_with_acc)
+
+df_with_acc <- df_with_acc[df_with_acc$score > 10,]
+
+gini_by_months <- data.frame(
+                 month=character(),
+                 gini=double(), 
+                 stringsAsFactors=TRUE
+                 ) 
+  
+for (month in unique(df_with_acc$month)){
+  mnth_df <- df_with_acc[df_with_acc$month == month, ]
+  agg <- aggregate(mnth_df$score, by=list(author=mnth_df$author), FUN=sum)
+  gini <- Gini(agg$x)
+  gini_by_month <- data.frame(
+                 month=month,
+                 gini=gini, 
+                 stringsAsFactors=TRUE
+                 )
+  gini_by_months <- rbind(gini_by_months, gini_by_month)
+}
+
+
+ggplot(gini_by_months, aes(x=month, y=gini)) + geom_point()
+
+agg <- aggregate(df_with_acc$score, by=list(author=df_with_acc$author), FUN=sum)
+#agg
 Gini(agg$x)
 
-Gini(dfwi$Freq)
+ggplot(agg, aes(x=author, y=x)) + geom_point()
+
 ```
 
