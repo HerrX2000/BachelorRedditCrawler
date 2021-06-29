@@ -7,6 +7,8 @@ import csv
 import praw
 import sys  
 import keyboard
+import xml.dom.minidom as minidom
+
 
 class DebugLevel(Enum):
     ALWAYS = 0
@@ -34,12 +36,26 @@ def debug(input, debug_level_input = DebugLevel.ALWAYS, self_updating = False):
 def fix_len_int(int,len):
     return ("{:0"+str(len)+"d}").format(int)
 
+config = {}
 
+
+def configure():
+    global config
+    dic={}
+    dom = minidom.parse("config.xml")
+    root = dom.documentElement                        #take name1 as example
+    config['user_agent'] =root.getElementsByTagName('user_agent')[0].firstChild.data
+    config['client_id'] =root.getElementsByTagName('client_id')[0].firstChild.data
+    config['client_secret'] =root.getElementsByTagName('client_secret')[0].firstChild.data
+    config['start_date'] =root.getElementsByTagName('start_date')[0].firstChild.data
+    config['end_date'] =root.getElementsByTagName('end_date')[0].firstChild.data    
+    
 def main():
+    global config
     def abort():
         print('Aborting...')
         handle_errors(errors)
-        debug('Latest post retrieved: '+str(datetime.fromtimestamp(max(post.get('created_utc') for post in posts))), DebugLevel.ALWAYS)
+        debug('Latest post retrieved: '+str(datetime.fromtimestamp(max(post.created_utc for post in posts))), DebugLevel.ALWAYS)
         
     def handle_errors(errors):
         for error in errors:
@@ -52,7 +68,7 @@ def main():
                 debug('UnknownError Error in epoch('+str(error.epoch)+'): '+str(error.error) , DebugLevel.ALWAYS)
                 debug('\t'+str(error.post) , DebugLevel.DEBUG)
 
-    prw = praw.Reddit(user_agent='praw_overflow',client_id='SLcx5BHOfpE3bQ',client_secret='fowGwZ-GXfjG2TKpzp3u0gH8HeINgQ')
+    prw = praw.Reddit(user_agent=config['user_agent'], client_id=config['client_id'], client_secret=config['client_secret'])
 
     api = PushshiftAPI(prw)
 
@@ -60,9 +76,9 @@ def main():
     static_fieldnames = ['id','permalink','author', 'author_fullname', 'title', 'url', 'subreddit', 'stickied',  'created_utc', 'is_original_content','author_flair_text','is_video','locked','selftext','link_flair_richtext','domain','over_18']
     dynamic_fieldnames = ['score','total_awards_received','upvote_ratio', 'num_comments']
 
-    start_epoch = int(dt.datetime(2020, 1, 1).timestamp())
+    start_epoch = int(dt.datetime(2020, 1, 19).timestamp())
     end_epoch = int(dt.datetime(2020, 12, 31).timestamp())
-    interval = 20*60*60
+    interval = 16*60*60
 
     errors = list()
 
@@ -92,7 +108,8 @@ def main():
         post_processed = 0
         post_process_times = list()
 
-
+        debug("Waiting for first server response...", DEBUG_LEVEL.ALWAYS)
+                
         with open(path, mode='w', newline='', encoding='utf-8') as post_file:
             post_writer = csv.writer(post_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
             post_writer.writerow(header)
@@ -142,7 +159,7 @@ def main():
                         eta = -1
                         if len(epoch_process_times) != 0:
                             eta = round((num_of_epochs-num_of_epochs_received)*(sum(epoch_process_times) / len(epoch_process_times))+ eta_posts )
-                        debug("\rReceived epoch "+fix_len_int(num_of_epochs_received, len(str(num_of_epochs)))+"/"+str(num_of_epochs)+"\t|\tProcessed posts "+fix_len_int(post_processed,len(str(len(result))))+"/"+str(len(result))+"\t|\tEstimated time remaining: "+str(eta)+" sek", DEBUG_LEVEL.ALWAYS, True)        
+                        debug("Received epoch "+fix_len_int(num_of_epochs_received, len(str(num_of_epochs)))+"/"+str(num_of_epochs)+"\t|\tProcessed posts "+fix_len_int(post_processed,3)+"/"+fix_len_int(len(result))+"\t|\tEstimated time remaining: "+str(eta/60)+" min", DEBUG_LEVEL.ALWAYS, True)        
                     except Exception as err:
                         errors.append(type('obj', (object,), {'type': 'UnknownError', 'epoch' : num_of_epochs_received, 'error' : err, 'post' : post}))
                 if keyboard.is_pressed('c'):
@@ -155,5 +172,5 @@ def main():
         handle_errors(errors)
         debug('Finished r/'+subreddit+'\n')
     debug('Finished')
-
+configure()
 main()

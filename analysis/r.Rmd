@@ -105,6 +105,7 @@ gini_by_months <- data.frame(
 for (month in unique(df_with_acc$month)){
   mnth_df <- df_with_acc[df_with_acc$month == month, ]
   agg <- aggregate(mnth_df$score, by=list(author=mnth_df$author), FUN=sum)
+  print(agg)
   gini <- Gini(agg$x)
   gini_by_month <- data.frame(
                  month=month,
