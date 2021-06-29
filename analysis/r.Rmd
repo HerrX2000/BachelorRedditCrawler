@@ -1,0 +1,85 @@
+---
+title: "RedditAnalysis"
+author: "Frederik Mann"
+date: "29 6 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r }
+library(pacman)
+p_load(RColorBrewer, # color pallets
+       ggplot2, # reportable graphs
+       cowplot, # arranges ggplot graphs nicely
+       stargazer,
+       MASS,
+       DescTools) 
+```
+
+### Import data set
+```{r}
+odf  <- read.csv("posts_berlin_2020.csv")
+df <- read.csv("posts_berlin_2020.csv")
+```
+
+### Inspect
+```{r}
+str(df)
+
+# Convert appropriate variables to factors
+#df$airbag <- factor(df$airbag)
+
+str(df)
+
+dim(df)
+```
+
+### Preprocess: Treat missing values, if applicable
+```{r}
+# Track down variables with missing values
+sum(is.na(df))
+colSums(is.na(df))
+
+# Check the percentage of missing values in the data set
+(nrow(df) - nrow(na.omit(df))) / nrow(df)
+
+
+df <- data.frame(event.date=as.Date(df$datetime))
+
+to_interval <- function(anchor.date, future.date, interval.days){
+  round(as.integer(future.date - anchor.date) / interval.days, 0)
+}
+
+df$week_interval <- to_interval(as.Date('2020-01-01'), 
+                          df$event.date, 7 )
+
+df$month <- format(df$event.date, "%m")
+
+```
+
+```{r}
+data.frame(table(df$month))
+
+dfwi <- data.frame(table(df$week_interval))
+dfwi
+
+ggplot(df, aes(factor(week_interval),fill = df$class)) +
+geom_bar(stat="count", position = "dodge") + 
+scale_fill_brewer(palette = "Set1")
+
+agg <- aggregate(odf$score, by=list(author=odf$author), FUN=sum)
+agg
+Gini(agg$x)
+
+Gini(dfwi$Freq)
+```
+

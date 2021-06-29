@@ -1,5 +1,4 @@
-from pynput.keyboard import Key, Listener
-from psaw import PushshiftAPI
+from pmaw import PushshiftAPI
 from datetime import datetime
 from pathlib import Path
 from enum import Enum
@@ -16,17 +15,9 @@ class DebugLevel(Enum):
     INFO = 3
     DEBUG = 4
 
-prw = praw.Reddit(user_agent='praw_overflow',client_id='SLcx5BHOfpE3bQ',client_secret='fowGwZ-GXfjG2TKpzp3u0gH8HeINgQ')
-
-api = PushshiftAPI(prw)
-
 DEBUG_LEVEL = DebugLevel.INFO
 CHILL_TIME = 0.5
 
-
-subreddits = ['de']
-static_fieldnames = ['id','permalink','author', 'author_fullname', 'title', 'url', 'subreddit', 'stickied',  'created_utc', 'is_original_content','author_flair_text','is_video','locked','selftext','link_flair_richtext','domain','over_18']
-dynamic_fieldnames = ['score','total_awards_received','upvote_ratio', 'num_comments']
 
 
 
@@ -43,38 +34,47 @@ def debug(input, debug_level_input = DebugLevel.ALWAYS, self_updating = False):
         else:
             print(input)
 
-def on_press(key):
-    if key == 'c':
-        print('Aborting...')
-        handle_errors(errors)
-        debug('Latest post retrieved: '+str(datetime.fromtimestamp(max(post.created_utc for post in posts))), DebugLevel.ALWAYS)
-
-def on_release(key):
-    pass
-
 def fix_len_int(int,len):
     return ("{:0"+str(len)+"d}").format(int)
 
-def handle_errors(errors):
-    if(warning_result_overflow > 0):
+
+
+
+
+def main():
+    def abort():
+        print('Aborting...')
+        handle_errors(errors)
+        debug('Latest post retrieved: '+str(datetime.fromtimestamp(max(post.get('created_utc') for post in posts))), DebugLevel.ALWAYS)
+        
+    def handle_errors(errors):
         for error in errors:
             if(error.type == 'EpochOverflow'):
                 debug('EpochOverflow Error in epoch: '+str(error.epoch), DebugLevel.ALWAYS)
             elif(error.type == 'PostAttrNotFound'):
-                debug('PostAttrNotFound Error in post: '+str(error.post), DebugLevel.ALWAYS)
+                debug('PostAttrNotFound Error in post: '+str(error.fieldname), DebugLevel.ALWAYS)
+                debug('\t'+str(error.post), DebugLevel.DEBUG)
             elif(error.type == 'UnknownError'):
-                debug('UnknownError Error in epoch: '+str(error.epoch), DebugLevel.ALWAYS)
+                debug('UnknownError Error in epoch('+str(error.epoch)+'): '+str(error.error) , DebugLevel.ALWAYS)
+                debug('\t'+str(error.post) , DebugLevel.DEBUG)
 
-errors = list()
-warning_result_overflow = 0
+    prw = praw.Reddit(user_agent='praw_overflow',client_id='SLcx5BHOfpE3bQ',client_secret='fowGwZ-GXfjG2TKpzp3u0gH8HeINgQ')
 
-def main():
+    api = PushshiftAPI()
+
+    subreddits = ['de']
+    static_fieldnames = ['id','permalink','author', 'author_fullname', 'title', 'url', 'subreddit', 'stickied',  'created_utc', 'is_original_content','author_flair_text','is_video','locked','selftext','link_flair_richtext','domain','over_18']
+    dynamic_fieldnames = ['score','total_awards_received','upvote_ratio', 'num_comments']
+    dynamic_fieldnames = []
+
+    start_epoch = int(dt.datetime(2020, 1, 1).timestamp())
+    end_epoch = int(dt.datetime(2020, 12, 31).timestamp())
+    interval = 18*60*60
+
+    errors = list()
+
     for subreddit in subreddits:
         debug('Start receiving posts in r/'+subreddit)
-
-        start_epoch = int(dt.datetime(2020, 1, 1).timestamp())
-        end_epoch = int(dt.datetime(2020, 12, 31).timestamp())
-        interval = 20*60*60
 
         posts = list()
 
@@ -103,17 +103,15 @@ def main():
         with open(path, mode='w', newline='', encoding='utf-8') as post_file:
             post_writer = csv.writer(post_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
             post_writer.writerow(header)
-            prev_month = datetime.fromtimestamp(start_epoch).month
-            prev_day = datetime.fromtimestamp(start_epoch).day
-
-
-            while current_epoch < end_epoch:
+            done = False
+            while done == False:
+                done = True
                 start_time_epoch = datetime.now()
-                result = list(api.search_submissions(after=current_epoch, before=current_epoch+interval, subreddit=subreddit, filter=static_fieldnames, limit=200, sort_type='created_utc', sort='asc'))
+                result = list(api.search_submissions(after=start_epoch, before=end_epoch, subreddit=subreddit, filter=static_fieldnames, limit=None, safe_exit=True))
                 posts.extend(result)
                 num_of_epochs_received += 1
-                if len(result) >= 200:
-                    warning_result_overflow += 1
+                while len(result) >= 200:
+                    interval -= 60*60
                     errors.append(type('obj', (object,), {'type': 'EpochOverflow', 'epoch' : num_of_epochs_received}))
                 current_epoch += interval
                 debug("Received epoch "+datetime.fromtimestamp(current_epoch).strftime("%c")+" to "+datetime.fromtimestamp(current_epoch+interval).strftime("%c"), DEBUG_LEVEL.DEBUG)
@@ -130,17 +128,17 @@ def main():
                             break
                         start_time_post = datetime.now()
                         post_as_csv = []
-                        post.datetime = datetime.fromtimestamp(post.created_utc)
-                        post.epoch = num_of_epochs_received
+                        post['datetime'] = datetime.fromtimestamp(post.get('created_utc'))
+                        post['epoch'] = num_of_epochs_received
                         for fieldname in header:
-                            if hasattr(post, fieldname):
-                                post_as_csv.append(escape(getattr(post, fieldname)))
+                            if fieldname in post:
+                                post_as_csv.append(escape(post.get(fieldname)))
                             elif fieldname == 'author_fullname':
                                 post_as_csv.append('NULL')
                             else:
-                                debug("Warning: "+fieldname+' not found in: '+post.id, DebugLevel.DEBUG)
+                                debug("Warning: "+fieldname+' not found in: '+post.get('id'), DebugLevel.DEBUG)
                                 debug(post, DebugLevel.DEBUG)
-                                errors.append(type('obj', (object,), {'type': 'PostAttrNotFound', 'post' : post}))
+                                errors.append(type('obj', (object,), {'type': 'PostAttrNotFound', 'post' : post, 'fieldname' : fieldname}))
                                 post_as_csv.append('NULL')
                         post_writer.writerow(post_as_csv)
                         this_post_process_times.append((datetime.now()-start_time_post).total_seconds())
@@ -153,11 +151,10 @@ def main():
                         if len(epoch_process_times) != 0:
                             eta = round((num_of_epochs-num_of_epochs_received)*(sum(epoch_process_times) / len(epoch_process_times))+ eta_posts )
                         debug("\rReceived epoch "+fix_len_int(num_of_epochs_received, len(str(num_of_epochs)))+"/"+str(num_of_epochs)+"\t|\tProcessed posts "+fix_len_int(post_processed,len(str(len(result))))+"/"+str(len(result))+"\t|\tEstimated time remaining: "+str(eta)+" sek", DEBUG_LEVEL.ALWAYS, True)        
-                    except OSError as err:
-                        print("OS error: {0}".format(err))
-                        errors.append(type('obj', (object,), {'type': 'UnknownError', 'epoch' : num_of_epochs_received}))
+                    except Exception as err:
+                        errors.append(type('obj', (object,), {'type': 'UnknownError', 'epoch' : num_of_epochs_received, 'error' : err, 'post' : post}))
                 if keyboard.is_pressed('c'):
-                    on_press('c')
+                    abort()
                     break
                 post_process_times.append(this_post_process_times)
                 
