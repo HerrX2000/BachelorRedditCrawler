@@ -1,4 +1,4 @@
-from pmaw import PushshiftAPI
+from psaw import PushshiftAPI
 from datetime import datetime
 from pathlib import Path
 from enum import Enum
@@ -18,9 +18,6 @@ class DebugLevel(Enum):
 DEBUG_LEVEL = DebugLevel.INFO
 CHILL_TIME = 0.5
 
-
-
-
 def escape(input):
     if isinstance(input, str):
         input = input.replace('\n','\\n')
@@ -36,9 +33,6 @@ def debug(input, debug_level_input = DebugLevel.ALWAYS, self_updating = False):
 
 def fix_len_int(int,len):
     return ("{:0"+str(len)+"d}").format(int)
-
-
-
 
 
 def main():
@@ -60,16 +54,15 @@ def main():
 
     prw = praw.Reddit(user_agent='praw_overflow',client_id='SLcx5BHOfpE3bQ',client_secret='fowGwZ-GXfjG2TKpzp3u0gH8HeINgQ')
 
-    api = PushshiftAPI()
+    api = PushshiftAPI(prw)
 
     subreddits = ['de']
     static_fieldnames = ['id','permalink','author', 'author_fullname', 'title', 'url', 'subreddit', 'stickied',  'created_utc', 'is_original_content','author_flair_text','is_video','locked','selftext','link_flair_richtext','domain','over_18']
     dynamic_fieldnames = ['score','total_awards_received','upvote_ratio', 'num_comments']
-    dynamic_fieldnames = []
 
     start_epoch = int(dt.datetime(2020, 1, 1).timestamp())
     end_epoch = int(dt.datetime(2020, 12, 31).timestamp())
-    interval = 18*60*60
+    interval = 20*60*60
 
     errors = list()
 
@@ -103,22 +96,21 @@ def main():
         with open(path, mode='w', newline='', encoding='utf-8') as post_file:
             post_writer = csv.writer(post_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_NONNUMERIC)
             post_writer.writerow(header)
-            done = False
-            while done == False:
-                done = True
+
+
+            while current_epoch < end_epoch:
                 start_time_epoch = datetime.now()
-                result = list(api.search_submissions(after=start_epoch, before=end_epoch, subreddit=subreddit, filter=static_fieldnames, limit=None, safe_exit=True))
+                result = list(api.search_submissions(after=current_epoch, before=current_epoch+interval, subreddit=subreddit, filter=static_fieldnames, limit=200, sort_type='created_utc', sort='asc'))
                 posts.extend(result)
                 num_of_epochs_received += 1
                 while len(result) >= 200:
                     interval -= 60*60
+                    result = list(api.search_submissions(after=current_epoch, before=current_epoch+interval, subreddit=subreddit, filter=static_fieldnames, limit=200, sort_type='created_utc', sort='asc'))
                     errors.append(type('obj', (object,), {'type': 'EpochOverflow', 'epoch' : num_of_epochs_received}))
+                    debug("EpochOverflow error occured, estimated time will be longer.")
                 current_epoch += interval
                 debug("Received epoch "+datetime.fromtimestamp(current_epoch).strftime("%c")+" to "+datetime.fromtimestamp(current_epoch+interval).strftime("%c"), DEBUG_LEVEL.DEBUG)
                 
-                
-                #time.sleep(CHILL_TIME)
-                current_posts_processed = 0
                 post_processed = 0
 
                 this_post_process_times = list()
@@ -128,15 +120,15 @@ def main():
                             break
                         start_time_post = datetime.now()
                         post_as_csv = []
-                        post['datetime'] = datetime.fromtimestamp(post.get('created_utc'))
-                        post['epoch'] = num_of_epochs_received
+                        post.datetime = datetime.fromtimestamp(post.created_utc)
+                        post.epoch = num_of_epochs_received
                         for fieldname in header:
-                            if fieldname in post:
-                                post_as_csv.append(escape(post.get(fieldname)))
+                            if hasattr(post, fieldname):
+                                post_as_csv.append(escape(getattr(post, fieldname)))
                             elif fieldname == 'author_fullname':
                                 post_as_csv.append('NULL')
                             else:
-                                debug("Warning: "+fieldname+' not found in: '+post.get('id'), DebugLevel.DEBUG)
+                                debug("Warning: "+fieldname+' not found in: '+post.id, DebugLevel.DEBUG)
                                 debug(post, DebugLevel.DEBUG)
                                 errors.append(type('obj', (object,), {'type': 'PostAttrNotFound', 'post' : post, 'fieldname' : fieldname}))
                                 post_as_csv.append('NULL')

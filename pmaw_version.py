@@ -18,9 +18,6 @@ class DebugLevel(Enum):
 DEBUG_LEVEL = DebugLevel.INFO
 CHILL_TIME = 0.5
 
-
-
-
 def escape(input):
     if isinstance(input, str):
         input = input.replace('\n','\\n')
@@ -36,9 +33,6 @@ def debug(input, debug_level_input = DebugLevel.ALWAYS, self_updating = False):
 
 def fix_len_int(int,len):
     return ("{:0"+str(len)+"d}").format(int)
-
-
-
 
 
 def main():
@@ -112,13 +106,12 @@ def main():
                 num_of_epochs_received += 1
                 while len(result) >= 200:
                     interval -= 60*60
+                    result = list(api.search_submissions(after=current_epoch, before=current_epoch+interval, subreddit=subreddit, filter=static_fieldnames, limit=200, sort_type='created_utc', sort='asc'))
                     errors.append(type('obj', (object,), {'type': 'EpochOverflow', 'epoch' : num_of_epochs_received}))
+                    debug("EpochOverflow error occured, estimated time will be longer.")
                 current_epoch += interval
                 debug("Received epoch "+datetime.fromtimestamp(current_epoch).strftime("%c")+" to "+datetime.fromtimestamp(current_epoch+interval).strftime("%c"), DEBUG_LEVEL.DEBUG)
                 
-                
-                #time.sleep(CHILL_TIME)
-                current_posts_processed = 0
                 post_processed = 0
 
                 this_post_process_times = list()
