@@ -20,6 +20,8 @@ class DebugLevel(Enum):
 DEBUG_LEVEL = DebugLevel.INFO
 CHILL_TIME = 0.5
 
+log_file = ""
+
 def escape(input):
     if isinstance(input, str):
         input = input.replace('\n','\\n')
@@ -32,6 +34,9 @@ def debug(input, debug_level_input = DebugLevel.ALWAYS, self_updating = False):
             sys.stdout.flush()
         else:
             print(input)
+    with open(log_file, "a") as myfile:
+        txt = str(datetime.now()) + " | [" + debug_level_input.name + "]: " + input + "\n"
+        myfile.write(txt)
 
 def fix_len_int(int,len):
     return ("{:0"+str(len)+"d}").format(int)
@@ -76,7 +81,7 @@ def main():
     static_fieldnames = ['id','permalink','author', 'author_fullname', 'title', 'url', 'subreddit', 'stickied',  'created_utc', 'is_original_content','author_flair_text','is_video','locked','selftext','link_flair_richtext','domain','over_18']
     dynamic_fieldnames = ['score','total_awards_received','upvote_ratio', 'num_comments']
 
-    start_epoch = int(dt.datetime(2020, 1, 19).timestamp())
+    start_epoch = int(dt.datetime(2020, 1, 21).timestamp())
     end_epoch = int(dt.datetime(2020, 12, 31).timestamp())
     interval = 16*60*60
 
@@ -126,8 +131,6 @@ def main():
                     errors.append(type('obj', (object,), {'type': 'EpochOverflow', 'epoch' : num_of_epochs_received}))
                     debug("EpochOverflow error occured, estimated time will be longer.")
                 current_epoch += interval
-                debug("Received epoch "+datetime.fromtimestamp(current_epoch).strftime("%c")+" to "+datetime.fromtimestamp(current_epoch+interval).strftime("%c"), DEBUG_LEVEL.DEBUG)
-                
                 post_processed = 0
 
                 this_post_process_times = list()
@@ -159,8 +162,9 @@ def main():
                         eta = -1
                         if len(epoch_process_times) != 0:
                             eta = round((num_of_epochs-num_of_epochs_received)*(sum(epoch_process_times) / len(epoch_process_times))+ eta_posts )
-                        debug("Received epoch "+fix_len_int(num_of_epochs_received, len(str(num_of_epochs)))+"/"+str(num_of_epochs)+"\t|\tProcessed posts "+fix_len_int(post_processed,3)+"/"+fix_len_int(len(result))+"\t|\tEstimated time remaining: "+str(eta/60)+" min", DEBUG_LEVEL.ALWAYS, True)        
+                        debug("Received epoch "+fix_len_int(num_of_epochs_received, len(str(num_of_epochs)))+"/"+str(num_of_epochs)+"\t|\tProcessed posts "+fix_len_int(post_processed,3)+"/"+fix_len_int(len(result),3)+"\t|\tEstimated time remaining: "+str(round(eta/60,1))+" min", DEBUG_LEVEL.ALWAYS, True)        
                     except Exception as err:
+                        debug(err)
                         errors.append(type('obj', (object,), {'type': 'UnknownError', 'epoch' : num_of_epochs_received, 'error' : err, 'post' : post}))
                 if keyboard.is_pressed('c'):
                     abort()
@@ -172,5 +176,8 @@ def main():
         handle_errors(errors)
         debug('Finished r/'+subreddit+'\n')
     debug('Finished')
+
+log_file = "log_"+str(datetime.now()).replace(" ", "_").replace(":", "_")+".txt"
+open("log.txt", "w")
 configure()
 main()
