@@ -22,12 +22,13 @@ p_load(RColorBrewer, # color pallets
        cowplot, # arranges ggplot graphs nicely
        stargazer,
        MASS,
-       DescTools) 
+       DescTools,
+       plyr) 
 ```
 
 ### Import data set
 ```{r}
-df <- read.csv("posts_berlin_2020.csv")
+df <- read.csv("posts_de_2020_partial.csv")
 ```
 
 ### Inspect
@@ -45,9 +46,10 @@ dim(df)
 
 ### Preprocess: Treat missing values, if applicable
 ```{r}
-df[df == "NULL"] <- NA
+df$author_fullname[df$author_fullname == "NULL"] <- NA
+df$author[df$author == ""] <- NA
 nrow(df)
-df <- unique(df, by = "id")
+df <-df[!duplicated(df$id), ]
 nrow(df)
 
 # Track down variables with missing values
@@ -96,27 +98,75 @@ nrow(df_with_acc)
 
 df_with_acc <- df_with_acc[df_with_acc$score > 10,]
 
-gini_by_months <- data.frame(
-                 month=character(),
+ 
+
+gini_by_7days <- data.frame(
+                 interval=character(),
                  gini=double(), 
                  stringsAsFactors=TRUE
                  ) 
   
+for (interval in unique(df_with_acc$week_interval)){
+  df_7day <- df_with_acc[df_with_acc$week_interval == interval, ]
+  
+  df_author_posts <- count(df_7day, vars = "author")
+  
+  df_author_score <- aggregate(df_7day$score, by=list(author=df_7day$author), FUN=sum)
+
+  
+  df_author <- merge(df_author_posts, df_author_score, by="author")
+  df_author$score_per_post <- df_author$x / df_author$freq
+  
+  gini <- Gini(df_author$score_per_post)
+  gini_by_7day <- data.frame(
+                 interval=interval,
+                 gini=gini, 
+                 stringsAsFactors=TRUE
+                 )
+  
+  gini_by_7days <- rbind(gini_by_7days, gini_by_7day)
+}
+
+gini_by_7days$interval <-as.numeric(as.character(gini_by_7days$interval))
+
+ggplot(gini_by_7days, aes(x=interval, y=gini)) +
+  geom_point() +
+  geom_smooth(method='lm', formula= y~x, color = "blue") +
+  ylim(0,1)
+
+gini_by_months <- data.frame(
+                 month=character(),
+                 gini=double(), 
+                 stringsAsFactors=TRUE
+                 )
+
 for (month in unique(df_with_acc$month)){
   mnth_df <- df_with_acc[df_with_acc$month == month, ]
-  agg <- aggregate(mnth_df$score, by=list(author=mnth_df$author), FUN=sum)
-  print(agg)
-  gini <- Gini(agg$x)
+  
+  df_author_posts <- count(mnth_df, vars = "author")
+  
+  df_author_score <- aggregate(mnth_df$score, by=list(author=mnth_df$author), FUN=sum)
+
+  
+  df_author <- merge(df_author_posts, df_author_score, by="author")
+  df_author$score_per_post <- df_author$x / df_author$freq
+  
+  gini <- Gini(df_author$score_per_post)
   gini_by_month <- data.frame(
                  month=month,
                  gini=gini, 
                  stringsAsFactors=TRUE
                  )
+  
   gini_by_months <- rbind(gini_by_months, gini_by_month)
 }
 
+gini_by_months$month <-as.numeric(as.character(gini_by_months$month))
 
-ggplot(gini_by_months, aes(x=month, y=gini)) + geom_point()
+ggplot(gini_by_months, aes(x=month, y=gini)) +
+  geom_point() +
+  geom_smooth(method='lm', formula= y~x, color = "blue") +
+  ylim(0,1)
 
 agg <- aggregate(df_with_acc$score, by=list(author=df_with_acc$author), FUN=sum)
 #agg
