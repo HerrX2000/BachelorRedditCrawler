@@ -28,7 +28,7 @@ p_load(RColorBrewer, # color pallets
 
 ### Import data set
 ```{r}
-df <- read.csv("posts_de_2020_partial.csv")
+df <- read.csv("posts_berlin_2020.csv")
 ```
 
 ### Inspect
