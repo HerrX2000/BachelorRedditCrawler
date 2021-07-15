@@ -3,8 +3,8 @@ title: "comments"
 author: "Frederik Mann"
 date: "15 7 2021"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -27,8 +27,12 @@ p_load(RColorBrewer, # color pallets
 
 ### Import data set
 ```{r import}
-df_europe <- read.csv("comments_europe_0.csv")
-df <- rbind(df_europe)
+df_berlin <- read.csv("comments_berlin_2020.csv")
+df_germany <- read.csv("comments_de_2020.csv")
+df_europe <- read.csv("comments_europe_2020.csv")
+df_berlin$author_fullname <- NULL
+df_germany$author_fullname <- NULL
+df <- rbind(df_berlin, df_germany, df_europe)
 ```
 
 ### Inspect
@@ -45,9 +49,11 @@ df$steward_reports <- as.factor(df$steward_reports)
 str(df)
 ```
 
+
 ### Preprocess: Treat missing values, if applicable
 ```{r preprocess}
 df$author[df$author == ""] <- NA
+df$author[df$author == "[deleted]"] <- NA
 df <-df[!duplicated(df$id), ]
 nrow(df)
 

@@ -33,27 +33,26 @@ def main():
         
     def handle_errors(errors):
         for error in errors:
-            if(error.type == 'EpochOverflow'):
-                util.debug('EpochOverflow Error in epoch: '+str(error.epoch), DebugLevel.ALWAYS)
-            elif(error.type == 'PostAttrNotFound'):
+            if(error.type == 'PostAttrNotFound'):
                 util.debug('PostAttrNotFound Error in post: '+str(error.fieldname), DebugLevel.ALWAYS)
                 util.debug('\t'+str(error.post), DebugLevel.DEBUG)
             elif(error.type == 'UnknownError'):
-                util.debug('UnknownError Error in epoch('+str(error.epoch)+'): '+str(error.error) , DebugLevel.ALWAYS)
+                util.debug('UnknownError: '+str(error.error) , DebugLevel.ALWAYS)
                 util.debug('\t'+str(error.post) , DebugLevel.DEBUG)
 
     prw = praw.Reddit(user_agent=config['user_agent'], client_id=config['client_id'], client_secret=config['client_secret'])
 
     api = PushshiftAPI()
 
-    subreddits = ['de','berlin']
-    static_fieldnames = ['all_awardings', 'associated_award', 'author', 'author_flair_text', 'awarders', 'body', 'collapsed_because_crowd_control', 'created_utc', 'gildings', 'id', 'is_submitter', 'link_id', 'locked', 'no_follow', 'parent_id', 'permalink', 'retrieved_on', 'score', 'send_replies', 'steward_reports', 'stickied', 'subreddit', 'subreddit_id', 'total_awards_received']
+    subreddits = ['de']
+    static_fieldnames = ['id', 'all_awardings', 'associated_award', 'author', 'author_fullname', 'author_flair_text', 'awarders', 'body', 'collapsed_because_crowd_control', 'created_utc', 'gildings', 'is_submitter', 'link_id', 'locked', 'no_follow', 'parent_id', 'permalink', 'retrieved_on', 'score', 'send_replies', 'steward_reports', 'stickied', 'subreddit', 'subreddit_id', 'total_awards_received']
     dynamic_fieldnames = []
+    optional_fieldnames = ['author_fullname','steward_reports']
 
     
 
     start_epoch = int(dt.datetime(2020, 1, 1).timestamp())
-    end_epoch = int(dt.datetime(2020, 2, 1).timestamp())
+    end_epoch = int(dt.datetime(2021, 1, 1).timestamp())
 
     errors = list()
 
@@ -73,7 +72,7 @@ def main():
                     break
                 suffix += 1
                 
-            header = static_fieldnames+dynamic_fieldnames+['datetime']
+            header = static_fieldnames+dynamic_fieldnames+optional_fieldnames+['datetime']
             
             post_processed = 0
             post_process_times = list()
@@ -103,7 +102,7 @@ def main():
                         for key in header:
                             if key in comment:
                                 post_as_csv.append(util.escape(comment[key]))
-                            elif key == 'author_fullname':
+                            elif key in optional_fieldnames:
                                 post_as_csv.append('NULL')
                             else:
                                 util.debug("Warning: "+key+' not found in: '+comment['id'], DebugLevel.DEBUG)
@@ -125,7 +124,7 @@ def main():
                 
                 post_process_times.append(this_post_process_times)
                 
-            util.debug('\nReceived for posts in r/'+subreddit+': '+ str(len(comment)))
+            util.debug('\nReceived comments in r/'+subreddit+': '+ str(len(comments)))
             handle_errors(errors)
             util.debug('Finished r/'+subreddit+'\n')
         util.debug('Finished')

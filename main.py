@@ -51,7 +51,7 @@ def main():
     static_fieldnames = ['id','permalink','author', 'author_fullname', 'title', 'url', 'subreddit', 'stickied',  'created_utc', 'is_original_content','author_flair_text','is_video','locked','selftext','link_flair_richtext','domain','over_18']
     dynamic_fieldnames = ['score','total_awards_received','upvote_ratio', 'num_comments']
 
-    start_epoch = int(dt.datetime(2020, 7, 30).timestamp())
+    start_epoch = int(dt.datetime(2020, 8, 27).timestamp())
     end_epoch = int(dt.datetime(2020, 12, 31).timestamp())
     interval = 22*60*60
 
@@ -174,7 +174,7 @@ def main():
                     post_process_times.append(this_post_process_times)
                     
                     epoch_process_times.append((datetime.now()-start_time_epoch).total_seconds())
-            util.debug('\nReceived for posts in r/'+subreddit+': '+ str(len(posts)))
+            util.debug('\nReceived posts in r/'+subreddit+': '+ str(len(posts)))
             handle_errors(errors)
             util.debug('Finished r/'+subreddit+'\n')
         util.debug('Finished')
