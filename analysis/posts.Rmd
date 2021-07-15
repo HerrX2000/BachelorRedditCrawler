@@ -7,8 +7,12 @@ output:
   pdf_document: default
 ---
 
-```{r setup, include=FALSE}
+```{r setup, echo=FALSE, cache=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+
+#todo: fix width options
+options(width = 100)
+windows.options(width=30, height=10)
 ```
 
 ## Posts
@@ -41,13 +45,14 @@ df$is_original_content <- as.logical(df$is_original_content)
 df$stickied <- as.logical(df$stickied)
 df$subreddit <- as.factor(df$subreddit)
 
-dim(df)
+str(df)
 ```
 
 ### Preprocess: Treat missing values, if applicable
 ```{r preprocess}
 df$author_fullname[df$author_fullname == "NULL"] <- NA
 df$author[df$author == ""] <- NA
+df$selftext[df$selftext == "[deleted]"] <- NA
 nrow(df)
 df <-df[!duplicated(df$id), ]
 nrow(df)
@@ -68,11 +73,15 @@ to_interval <- function(anchor.date, future.date, interval.days){
   round(as.integer(future.date - anchor.date) / interval.days, 0)
 }
 
-df$week_interval <- to_interval(as.Date('2020-01-01'), 
-                          df$date, 7 )
+df$interval <- to_interval(as.Date('2020-01-01'), 
+                          df$date, 3 )
+
+df$interval <- factor(df$interval)
 
 df$month <- format(df$date, "%m")
 df$month <- factor(df$month)
+
+count(df[df$stickied == TRUE,])
 
 df <- df[!(df$stickied == TRUE),]
 
@@ -83,12 +92,12 @@ str(df)
 ```{r visualisation}
 data.frame(table(df$month))
 
-dfwi <- data.frame(table(df$week_interval))
+dfwi <- data.frame(table(df$interval))
 dfwi
 
 
-tbl <- with(df, table(subreddit, week_interval))
-ggplot(as.data.frame(tbl), aes(factor(week_interval), Freq, fill = subreddit)) +     
+tbl <- with(df, table(subreddit, interval))
+ggplot(as.data.frame(tbl), aes(factor(interval), Freq, fill = subreddit)) +     
   geom_col(position = 'dodge')
 
 
@@ -117,8 +126,8 @@ df_subs <- data.frame(
 for (subreddit in levels(df_with_acc$subreddit)){
   df_subreddit <- df_with_acc[df_with_acc$subreddit == subreddit, ]
   df_author_prev_interval <- NULL
-  for (interval in unique(df_subreddit$week_interval)){
-    df_7day <- df_subreddit[df_subreddit$week_interval == interval, ]
+  for (interval in unique(df_subreddit$interval)){
+    df_7day <- df_subreddit[df_subreddit$interval == interval, ]
     
     df_author_posts <- count(df_7day, vars = "author")
     
@@ -127,18 +136,18 @@ for (subreddit in levels(df_with_acc$subreddit)){
     
     df_author <- merge(df_author_posts, df_author_score, by="author")
     df_author$score_per_post <- df_author$x / df_author$freq
+    df_author$perc_of_total_post <- df_author$freq / length(df_author)
     "
      To calculate the coefficient, we divided 
     the average difference in the number of comments posted by 
     each possible pair of users who contributed to a given sub-
     reddit during a given month by the number of UCs for that 
     month in that subreddit.
-    
+    (see ref paper)
     where xi = number of comments by UC in a given month in a 
     given subreddit and n = number of UCs in a given month in a 
     given subreddit.
     "
-    print(unique(df_author$freq))
     gini_score_dist <- Gini(df_author$score_per_post)
     gini_post_dist <- Gini(df_author$freq)
     
@@ -151,12 +160,7 @@ for (subreddit in levels(df_with_acc$subreddit)){
     Our  turnover  metric  is  an  expression  of  the  percentage  of  
     UCs  that  are  not  retained  from  one  month  to  the  next  in  a  
     given subreddit.
-    1 1−{}
-    {}+UC UC
-    UC
-    i i 
-    i
-    
+    (see ref paper)
     where  UCi = UCs  in  month  i  and  UCi+1  =  UCs  in  the  month  
     after month i.
     If all UCs who contributed to discourse in the first month 
@@ -171,7 +175,7 @@ for (subreddit in levels(df_with_acc$subreddit)){
     }
     else{
       df_author_intersect <- intersect(df_author$author, df_author_prev_interval)
-      turnover <- length(df_author_intersect)/length(df_author$author)
+      turnover <- 1 - (length(df_author_intersect) / length(df_author$author))
     }
     
     df_sub <- data.frame(
@@ -204,7 +208,7 @@ ggplot(df_subs, aes(x=interval, y=contributors, group = subreddit, color = subre
 ggplot(df_subs, aes(x=interval, y=total_posts, group = subreddit, color = subreddit)) +
   geom_point()
 
-ggplot(df_subs, aes(x=interval, y=turnover, group = subreddit, color = subreddit)) +
+ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=interval, y=turnover, group = subreddit, color = subreddit)) +
   geom_point()
 
 ```
@@ -228,7 +232,7 @@ summary(lm_model)
 ggplot(df_subs, aes(x=contributors, y=gini_score_dist, group = subreddit, color = subreddit)) +
   geom_point() +
   geom_smooth(method='lm', formula= y~x) +
-  ylim(0.5,1) +
+  ylim(0,1) +
   ggtitle("UP predicting distrubition of posts score per UP")
 
 lm_model <- lm(gini_score_dist ~ contributors, data = df_subs)

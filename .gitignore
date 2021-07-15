@@ -5,5 +5,6 @@
 config.xml
 *.txt
 analysis/
-!analysis/*.rmd
 __pycache__/
+*.pdf
+!analysis/*.rmd
