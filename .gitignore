@@ -4,3 +4,6 @@
 *.html
 config.xml
 *.txt
+analysis/
+!analysis/*.rmd
+__pycache__/

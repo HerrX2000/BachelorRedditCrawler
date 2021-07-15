@@ -25,7 +25,7 @@ p_load(RColorBrewer, # color pallets
 ```
 
 ### Import data set
-```{r import}
+```{r import, cache=TRUE}
 df_berlin <- read.csv("posts_berlin_2020.csv")
 df_germany <- read.csv("posts_de_2020.csv")
 df_europe <- read.csv("posts_europe_2020_partial.csv")
@@ -34,8 +34,6 @@ df <- rbind(df_berlin, df_germany, df_europe)
 
 ### Inspect
 ```{r inspect}
-str(df)
-
 df$over_18 <- as.logical(df$over_18)
 df$locked <- as.logical(df$locked)
 df$is_video <- as.logical(df$is_video)
@@ -79,8 +77,8 @@ df$month <- factor(df$month)
 df <- df[!(df$stickied == TRUE),]
 
 str(df)
-
 ```
+
 ### Data Visualisation
 ```{r visualisation}
 data.frame(table(df$month))
@@ -105,15 +103,20 @@ nrow(df_with_acc)
 
  
 
-gini_by_7days <- data.frame(
+df_subs <- data.frame(
                  interval=character(),
-                 gini=double(),
+                 gini_post_dist=double(),
+                 gini_score_dist=double(),
                  subreddit=factor(levels = levels(df_with_acc$subreddit)),
+                 contributors = integer(),
+                 total_posts = integer(),
+                 turnover = double(),
                  stringsAsFactors=TRUE
                  )
 
 for (subreddit in levels(df_with_acc$subreddit)){
   df_subreddit <- df_with_acc[df_with_acc$subreddit == subreddit, ]
+  df_author_prev_interval <- NULL
   for (interval in unique(df_subreddit$week_interval)){
     df_7day <- df_subreddit[df_subreddit$week_interval == interval, ]
     
@@ -124,66 +127,133 @@ for (subreddit in levels(df_with_acc$subreddit)){
     
     df_author <- merge(df_author_posts, df_author_score, by="author")
     df_author$score_per_post <- df_author$x / df_author$freq
+    "
+     To calculate the coefficient, we divided 
+    the average difference in the number of comments posted by 
+    each possible pair of users who contributed to a given sub-
+    reddit during a given month by the number of UCs for that 
+    month in that subreddit.
     
-    gini <- Gini(df_author$score_per_post)
-    gini_by_7day <- data.frame(
+    where xi = number of comments by UC in a given month in a 
+    given subreddit and n = number of UCs in a given month in a 
+    given subreddit.
+    "
+    print(unique(df_author$freq))
+    gini_score_dist <- Gini(df_author$score_per_post)
+    gini_post_dist <- Gini(df_author$freq)
+    
+    #todo: test if turnover is calculated correctly
+    "
+    Turnover  was  determined  by  comparing  a  list  of  
+    UCs who contributed to discourse in a given subreddit dur-
+    ing  a  given  month  to  a  list  of  UCs  who  contributed  to  dis-
+    course in that same subreddit during the subsequent month. 
+    Our  turnover  metric  is  an  expression  of  the  percentage  of  
+    UCs  that  are  not  retained  from  one  month  to  the  next  in  a  
+    given subreddit.
+    1 1−{}
+    {}+UC UC
+    UC
+    i i 
+    i
+    
+    where  UCi = UCs  in  month  i  and  UCi+1  =  UCs  in  the  month  
+    after month i.
+    If all UCs who contributed to discourse in the first month 
+    also contributed in the second month, turnover was equal to 
+    0. If no UCs who contributed to discourse in the first month 
+    also contributed in the second month, turnover was equal to 
+    1 (M = .65;  SD = .13).
+    "
+    turnover <- double()
+    if(is.null(df_author_prev_interval)){
+      turnover <- NA
+    }
+    else{
+      df_author_intersect <- intersect(df_author$author, df_author_prev_interval)
+      turnover <- length(df_author_intersect)/length(df_author$author)
+    }
+    
+    df_sub <- data.frame(
                    interval=interval,
-                   gini=gini,
+                   gini_post_dist=gini_post_dist,
+                   gini_score_dist=gini_score_dist,
                    subreddit=subreddit,
+                   contributors = length(unique(df_7day$author)),
+                   total_posts = length(df_7day$id),
+                   turnover = turnover,
                    stringsAsFactors=TRUE
                    )
-    
-    gini_by_7days <- rbind(gini_by_7days, gini_by_7day)
+    df_author_prev_interval <- df_author$author
+    df_subs <- rbind(df_subs, df_sub)
   }
 }
 
 
-gini_by_7days$interval <-as.numeric(as.character(gini_by_7days$interval))
+df_subs$interval <-as.numeric(as.character(df_subs$interval))
 
-ggplot(gini_by_7days, aes(x=interval, y=gini, group = subreddit, color = subreddit)) +
+ggplot(df_subs, aes(x=interval, y=gini_post_dist, group = subreddit, color = subreddit)) +
+  geom_point() 
+
+ggplot(df_subs, aes(x=interval, y=gini_score_dist, group = subreddit, color = subreddit)) +
+  geom_point() 
+
+ggplot(df_subs, aes(x=interval, y=contributors, group = subreddit, color = subreddit)) +
+  geom_point()
+
+ggplot(df_subs, aes(x=interval, y=total_posts, group = subreddit, color = subreddit)) +
+  geom_point()
+
+ggplot(df_subs, aes(x=interval, y=turnover, group = subreddit, color = subreddit)) +
+  geom_point()
+
+```
+
+### Models
+```{r models}
+
+ggplot(df_subs, aes(x=contributors, y=gini_post_dist, group = subreddit, color = subreddit)) +
   geom_point() +
   geom_smooth(method='lm', formula= y~x) +
-  ylim(0.5,1)
+  ylim(0,1) +
+  ggtitle("UP predicting distrubition of posts per UP")
 
-gini_by_months <- data.frame(
-                 month=character(),
-                 gini=double(), 
-                 stringsAsFactors=TRUE
-                 )
+lm_model <- lm(gini_post_dist ~ contributors, data = df_subs)
+summary(lm_model)
 
-for (month in unique(df_with_acc$month)){
-  mnth_df <- df_with_acc[df_with_acc$month == month, ]
-  
-  df_author_posts <- count(mnth_df, vars = "author")
-  
-  df_author_score <- aggregate(mnth_df$score, by=list(author=mnth_df$author), FUN=sum)
+lm_model <- lm(gini_post_dist ~ contributors + interval, data = df_subs)
+summary(lm_model)
 
-  
-  df_author <- merge(df_author_posts, df_author_score, by="author")
-  df_author$score_per_post <- df_author$x / df_author$freq
-  
-  gini <- Gini(df_author$score_per_post)
-  gini_by_month <- data.frame(
-                 month=month,
-                 gini=gini, 
-                 stringsAsFactors=TRUE
-                 )
-  
-  gini_by_months <- rbind(gini_by_months, gini_by_month)
-}
 
-gini_by_months$month <-as.numeric(as.character(gini_by_months$month))
-
-ggplot(gini_by_months, aes(x=month, y=gini)) +
+ggplot(df_subs, aes(x=contributors, y=gini_score_dist, group = subreddit, color = subreddit)) +
   geom_point() +
-  geom_smooth(method='lm', formula= y~x, color = "blue") +
-  ylim(0,1)
+  geom_smooth(method='lm', formula= y~x) +
+  ylim(0.5,1) +
+  ggtitle("UP predicting distrubition of posts score per UP")
 
+lm_model <- lm(gini_score_dist ~ contributors, data = df_subs)
+summary(lm_model)
+
+lm_model <- lm(gini_score_dist ~ contributors + interval, data = df_subs)
+summary(lm_model)
+
+
+ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=contributors, y=turnover, group = subreddit, color = subreddit)) +
+  geom_point() +
+  geom_smooth(method='lm', formula= y~x) +
+  ylim(0,1) +
+  ggtitle("UP predicting turnover")
+
+lm_model <- lm(turnover ~ contributors, data = df_subs)
+summary(lm_model)
+
+lm_model <- lm(turnover ~ contributors + interval, data = df_subs)
+summary(lm_model)
+
+"
 agg <- aggregate(df_with_acc$score, by=list(author=df_with_acc$author), FUN=sum)
-#agg
-Gini(agg$x)
-
 ggplot(agg, aes(x=author, y=x)) + geom_point()
+"
 
 ```
 
