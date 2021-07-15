@@ -2,20 +2,18 @@
 title: "RedditAnalysis"
 author: "Frederik Mann"
 date: "29 6 2021"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+## Posts
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r }
+```{r libs}
 library(pacman)
 p_load(RColorBrewer, # color pallets
        ggplot2, # reportable graphs
@@ -27,12 +25,15 @@ p_load(RColorBrewer, # color pallets
 ```
 
 ### Import data set
-```{r}
-df <- read.csv("posts_berlin_2020.csv")
+```{r import}
+df_berlin <- read.csv("posts_berlin_2020.csv")
+df_germany <- read.csv("posts_de_2020.csv")
+df_europe <- read.csv("posts_europe_2020_partial.csv")
+df <- rbind(df_berlin, df_germany, df_europe)
 ```
 
 ### Inspect
-```{r}
+```{r inspect}
 str(df)
 
 df$over_18 <- as.logical(df$over_18)
@@ -40,12 +41,13 @@ df$locked <- as.logical(df$locked)
 df$is_video <- as.logical(df$is_video)
 df$is_original_content <- as.logical(df$is_original_content)
 df$stickied <- as.logical(df$stickied)
+df$subreddit <- as.factor(df$subreddit)
 
 dim(df)
 ```
 
 ### Preprocess: Treat missing values, if applicable
-```{r}
+```{r preprocess}
 df$author_fullname[df$author_fullname == "NULL"] <- NA
 df$author[df$author == ""] <- NA
 nrow(df)
@@ -79,16 +81,19 @@ df <- df[!(df$stickied == TRUE),]
 str(df)
 
 ```
-
-```{r}
+### Data Visualisation
+```{r visualisation}
 data.frame(table(df$month))
 
 dfwi <- data.frame(table(df$week_interval))
 dfwi
 
-ggplot(df, aes(factor(week_interval),fill = df$class)) +
-geom_bar(stat="count", position = "dodge") + 
-scale_fill_brewer(palette = "Set1")
+
+tbl <- with(df, table(subreddit, week_interval))
+ggplot(as.data.frame(tbl), aes(factor(week_interval), Freq, fill = subreddit)) +     
+  geom_col(position = 'dodge')
+
+
 
 Gini(dfwi$Freq)
 
@@ -96,43 +101,49 @@ nrow(df)
 df_with_acc <- na.omit(df)
 nrow(df_with_acc)
 
-df_with_acc <- df_with_acc[df_with_acc$score > 10,]
+#df_with_acc <- df_with_acc[df_with_acc$score > 10,]
 
  
 
 gini_by_7days <- data.frame(
                  interval=character(),
-                 gini=double(), 
-                 stringsAsFactors=TRUE
-                 ) 
-  
-for (interval in unique(df_with_acc$week_interval)){
-  df_7day <- df_with_acc[df_with_acc$week_interval == interval, ]
-  
-  df_author_posts <- count(df_7day, vars = "author")
-  
-  df_author_score <- aggregate(df_7day$score, by=list(author=df_7day$author), FUN=sum)
-
-  
-  df_author <- merge(df_author_posts, df_author_score, by="author")
-  df_author$score_per_post <- df_author$x / df_author$freq
-  
-  gini <- Gini(df_author$score_per_post)
-  gini_by_7day <- data.frame(
-                 interval=interval,
-                 gini=gini, 
+                 gini=double(),
+                 subreddit=factor(levels = levels(df_with_acc$subreddit)),
                  stringsAsFactors=TRUE
                  )
+
+for (subreddit in levels(df_with_acc$subreddit)){
+  df_subreddit <- df_with_acc[df_with_acc$subreddit == subreddit, ]
+  for (interval in unique(df_subreddit$week_interval)){
+    df_7day <- df_subreddit[df_subreddit$week_interval == interval, ]
+    
+    df_author_posts <- count(df_7day, vars = "author")
+    
+    df_author_score <- aggregate(df_7day$score, by=list(author=df_7day$author), FUN=sum)
   
-  gini_by_7days <- rbind(gini_by_7days, gini_by_7day)
+    
+    df_author <- merge(df_author_posts, df_author_score, by="author")
+    df_author$score_per_post <- df_author$x / df_author$freq
+    
+    gini <- Gini(df_author$score_per_post)
+    gini_by_7day <- data.frame(
+                   interval=interval,
+                   gini=gini,
+                   subreddit=subreddit,
+                   stringsAsFactors=TRUE
+                   )
+    
+    gini_by_7days <- rbind(gini_by_7days, gini_by_7day)
+  }
 }
+
 
 gini_by_7days$interval <-as.numeric(as.character(gini_by_7days$interval))
 
-ggplot(gini_by_7days, aes(x=interval, y=gini)) +
+ggplot(gini_by_7days, aes(x=interval, y=gini, group = subreddit, color = subreddit)) +
   geom_point() +
-  geom_smooth(method='lm', formula= y~x, color = "blue") +
-  ylim(0,1)
+  geom_smooth(method='lm', formula= y~x) +
+  ylim(0.5,1)
 
 gini_by_months <- data.frame(
                  month=character(),

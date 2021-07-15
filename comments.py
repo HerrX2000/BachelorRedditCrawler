@@ -30,7 +30,6 @@ def main():
     def abort():
         util.debug('\nAborting...')
         handle_errors(errors)
-        util.debug('Latest post retrieved: '+str(datetime.fromtimestamp(max(post.created_utc for post in posts))), DebugLevel.ALWAYS)
         
     def handle_errors(errors):
         for error in errors:
@@ -47,15 +46,14 @@ def main():
 
     api = PushshiftAPI()
 
-    subreddits = ['europe','de','berlin']
+    subreddits = ['de','berlin']
     static_fieldnames = ['all_awardings', 'associated_award', 'author', 'author_flair_text', 'awarders', 'body', 'collapsed_because_crowd_control', 'created_utc', 'gildings', 'id', 'is_submitter', 'link_id', 'locked', 'no_follow', 'parent_id', 'permalink', 'retrieved_on', 'score', 'send_replies', 'steward_reports', 'stickied', 'subreddit', 'subreddit_id', 'total_awards_received']
     dynamic_fieldnames = []
 
     
 
     start_epoch = int(dt.datetime(2020, 1, 1).timestamp())
-    end_epoch = int(dt.datetime(2021, 1, 1).timestamp())
-    interval = 12*60*60
+    end_epoch = int(dt.datetime(2020, 2, 1).timestamp())
 
     errors = list()
 
@@ -87,7 +85,7 @@ def main():
                 post_writer.writerow(header)
 
 
-                result = list(api.search_comments(after=start_epoch, before=end_epoch, subreddit=subreddit))
+                result = list(api.search_comments(after=start_epoch, before=end_epoch, subreddit=subreddit, safe_exit=True))
                 comments.extend(result)
 
                 post_processed = 0
@@ -133,7 +131,7 @@ def main():
         util.debug('Finished')
     except KeyboardInterrupt:
         abort()
-        print ("Saved progress.")
+        print ("Aborted.")
     except Exception:
         traceback.print_exc(file=sys.stdout)
         sys.exit(0)

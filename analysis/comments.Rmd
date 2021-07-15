@@ -1,0 +1,88 @@
+---
+title: "comments"
+author: "Frederik Mann"
+date: "15 7 2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Comments
+
+
+```{r libs}
+library(pacman)
+p_load(RColorBrewer, # color pallets
+       ggplot2, # reportable graphs
+       cowplot, # arranges ggplot graphs nicely
+       stargazer,
+       MASS,
+       DescTools,
+       plyr) 
+```
+
+### Import data set
+```{r import}
+df_europe <- read.csv("comments_europe_0.csv")
+df <- rbind(df_europe)
+```
+
+### Inspect
+```{r inspect}
+str(df)
+df$is_submitter <- as.logical(df$is_submitter)
+df$send_replies <- as.logical(df$send_replies)
+df$subreddit <- as.factor(df$subreddit)
+df$no_follow <- as.logical(df$no_follow)
+df$stickied <- as.logical(df$stickied)
+df$subreddit <- as.factor(df$subreddit)
+df$date <- as.Date(df$datetime)
+df$steward_reports <- as.factor(df$steward_reports)
+str(df)
+```
+
+### Preprocess: Treat missing values, if applicable
+```{r preprocess}
+df$author[df$author == ""] <- NA
+df <-df[!duplicated(df$id), ]
+nrow(df)
+
+# Track down variables with missing values
+sum(is.na(df))
+colSums(is.na(df))
+
+# Check the percentage of missing values in the data set
+(nrow(df) - nrow(na.omit(df))) / nrow(df)
+
+
+to_interval <- function(anchor.date, future.date, interval.days){
+  round(as.integer(future.date - anchor.date) / interval.days, 0)
+}
+
+df$week_interval <- to_interval(as.Date('2020-01-01'), 
+                          df$date, 7 )
+
+df$month <- format(df$date, "%m")
+df$month <- factor(df$month)
+
+df <- df[!(df$stickied == TRUE),]
+
+str(df)
+
+```
+### Data Visualisation
+```{r visualisation}
+data.frame(table(df$month))
+
+dfwi <- data.frame(table(df$week_interval))
+dfwi
+
+
+tbl <- with(df, table(subreddit, week_interval))
+ggplot(as.data.frame(tbl), aes(factor(week_interval), Freq, fill = subreddit)) +     
+  geom_col(position = 'dodge')
+```
