@@ -74,7 +74,7 @@ to_interval <- function(anchor.date, future.date, interval.days){
 }
 
 df$interval <- to_interval(as.Date('2020-01-01'), 
-                          df$date, 3 )
+                          df$date, 30 )
 
 df$interval <- factor(df$interval)
 
@@ -193,6 +193,10 @@ for (subreddit in levels(df_with_acc$subreddit)){
   }
 }
 
+df_subs$contributors <- log(df_subs$contributors)
+
+df_subs$is_berlin <- df_subs$subreddit == "berlin"
+df_subs$is_de <- df_subs$subreddit == "de"
 
 df_subs$interval <-as.numeric(as.character(df_subs$interval))
 
@@ -215,6 +219,7 @@ ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=interval, y=turnover, group = s
 
 ### Models
 ```{r models}
+mean(df_subs$gini_post_dist)
 
 ggplot(df_subs, aes(x=contributors, y=gini_post_dist, group = subreddit, color = subreddit)) +
   geom_point() +
@@ -225,7 +230,7 @@ ggplot(df_subs, aes(x=contributors, y=gini_post_dist, group = subreddit, color =
 lm_model <- lm(gini_post_dist ~ contributors, data = df_subs)
 summary(lm_model)
 
-lm_model <- lm(gini_post_dist ~ contributors + interval, data = df_subs)
+lm_model <- lm(gini_post_dist ~ contributors + interval + is_berlin + is_de , data = df_subs)
 summary(lm_model)
 
 
@@ -238,7 +243,7 @@ ggplot(df_subs, aes(x=contributors, y=gini_score_dist, group = subreddit, color 
 lm_model <- lm(gini_score_dist ~ contributors, data = df_subs)
 summary(lm_model)
 
-lm_model <- lm(gini_score_dist ~ contributors + interval, data = df_subs)
+lm_model <- lm(gini_score_dist ~ contributors + interval + is_berlin + is_de, data = df_subs)
 summary(lm_model)
 
 
@@ -251,7 +256,7 @@ ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=contributors, y=turnover, group
 lm_model <- lm(turnover ~ contributors, data = df_subs)
 summary(lm_model)
 
-lm_model <- lm(turnover ~ contributors + interval, data = df_subs)
+lm_model <- lm(turnover ~ contributors + interval + is_berlin + is_de, data = df_subs)
 summary(lm_model)
 
 "

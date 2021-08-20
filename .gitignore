@@ -8,3 +8,5 @@ analysis/
 __pycache__/
 *.pdf
 !analysis/*.rmd
+downloads/
+dump/
