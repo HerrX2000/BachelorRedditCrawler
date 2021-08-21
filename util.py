@@ -14,6 +14,7 @@ class DebugLevel(Enum):
     INFO = 3
     DEBUG = 4
     LOG_ONLY = 5
+    NONE = 999
 
 log_file = ""
 
@@ -50,24 +51,40 @@ def get_next_file(filepath, file_extension):
             return path
         suffix += 1
 
-def download_file(url, force = False, chunk_size = 16384):
+class DownloadedFile:
+    def __init__(self, filepath: str, from_cache: bool):
+        self.filepath = filepath
+        self.from_cache = from_cache
+
+def download_file(url, force = False, chunk_size = 16384, debug_level = DebugLevel.LOG_ONLY, progress_bar = True) -> DownloadedFile:
     local_filename = './downloads/'+url.split('/')[-1]
+    from_cache = False
     # NOTE the stream=True parameter below
     if(os.path.isfile(local_filename) and os.stat(local_filename).st_size != 0 and not force):
-        debug(url+' already downloaded and using local file: '+local_filename)
-        return local_filename
+        debug(url+' already downloaded and using local file: '+local_filename, debug_level)
+        return DownloadedFile(local_filename, True)
 
-    debug('Starting download of: '+url)
+    debug('Starting download of: '+url, debug_level)
     with requests.get(url, stream=True) as r:
         total_length = int(r.headers.get('content-length'))
         r.raise_for_status()
         with open(local_filename, 'wb') as f:
-            for chunk in progress.bar(r.iter_content(chunk_size=chunk_size), expected_size=(total_length/chunk_size) + 1): 
-                # If you have chunk encoded response uncomment if
-                # and set chunk_size parameter to None.
-                #if chunk: 
-                f.write(chunk)
-    return local_filename
+            if(progress_bar):
+                for chunk in progress.bar(r.iter_content(chunk_size=chunk_size), expected_size=(total_length/chunk_size) + 1): 
+                    # If you have chunk encoded response uncomment if
+                    # and set chunk_size parameter to None.
+                    #if chunk: 
+                    f.write(chunk)
+            else:
+                for chunk in r.iter_content(chunk_size=chunk_size): 
+                    # If you have chunk encoded response uncomment if
+                    # and set chunk_size parameter to None.
+                    #if chunk: 
+                    f.write(chunk)
+            debug("Downloaded: "+local_filename, debug_level)
+
+    return DownloadedFile(local_filename, False)
+
 
 def configure():
     global log_file
