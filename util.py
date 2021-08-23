@@ -1,4 +1,5 @@
 from enum import Enum
+from genericpath import isfile
 import xml.dom.minidom as minidom
 import sys
 from datetime import datetime
@@ -80,7 +81,15 @@ def download_file(url, force = False, chunk_size = 16384, debug_level = DebugLev
                 resume = True
                 debug(url+' partialy downloaded and continuing now.')
             else:
-                raise IOError('Requested partial download but server does not support it.') 
+                debug(url+' partialy downloaded but server does not support continuing download. Got'+str(request.status_code))
+                request = requests.get(url, stream=True)
+                old = 0
+                while True:
+                    old_filename = local_filename+".old_"+str(old)
+                    if(not os.path.isfile(old_filename)):
+                        os.rename(local_filename, old_filename)
+                        break
+                    old += 1
 
     with request as r:
         debug('Starting download of: '+url, debug_level)
