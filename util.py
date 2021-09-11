@@ -35,7 +35,7 @@ def debug(input, debug_level_input = DebugLevel.ALWAYS, self_updating = False, w
         else:
             print(input)
     if write_log:
-        with open(log_file, "a") as myfile:
+        with open(log_file, "a", encoding="utf-8") as myfile:
             txt = str(datetime.now()) + " | thread: " + threading.currentThread().name[:3] + " \t| [" + debug_level_input.name + "]:  \t" + str(input) + "\n"
             myfile.write(txt)
 
@@ -70,18 +70,20 @@ def download_file(url, force = False, chunk_size = 16384, debug_level = DebugLev
     resume = False
 
     total_length = int(request.headers.get('content-length'))
+    size_on_disk = None
     if os.path.isfile(local_filename)  and not force:
-        if os.stat(local_filename).st_size == total_length:
+        size_on_disk = os.stat(local_filename).st_size
+        if size_on_disk == total_length:
             debug(url+' already downloaded and using local file: '+local_filename, debug_level)
             return DownloadedFile(local_filename, True)
-        elif os.stat(local_filename).st_size != 0:
-            resume_header = {'Range': 'bytes=%d-' % os.stat(local_filename).st_size}
+        elif size_on_disk != 0:
+            resume_header = {'Range': 'bytes=%d-' % size_on_disk}
             request = requests.get(url, headers=resume_header, stream=True, allow_redirects=True)
             if request.status_code == 206:
                 resume = True
                 debug(url+' partialy downloaded and continuing now.')
             else:
-                debug(url+' partialy downloaded but server does not support continuing download. Got'+str(request.status_code))
+                debug(url+' partialy downloaded but server does not support continuing download. Got: '+str(request.status_code))
                 request = requests.get(url, stream=True)
                 old = 0
                 while True:
@@ -96,7 +98,11 @@ def download_file(url, force = False, chunk_size = 16384, debug_level = DebugLev
         r.raise_for_status()
         with open(local_filename, 'ab' if resume else 'wb') as f:
             if(progress_bar):
-                for chunk in progress.bar(r.iter_content(chunk_size=chunk_size), expected_size=(total_length/chunk_size) + 1): 
+                download_size = total_length
+                if resume:
+                    download_size = total_length - size_on_disk
+                 
+                for chunk in progress.bar(r.iter_content(chunk_size=chunk_size), expected_size=(download_size/chunk_size) + 1): 
                     # If you have chunk encoded response uncomment if
                     # and set chunk_size parameter to None.
                     #if chunk: 
