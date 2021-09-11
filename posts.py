@@ -51,7 +51,7 @@ def main():
     static_fieldnames = ['id','permalink','author', 'author_fullname', 'title', 'url', 'subreddit', 'stickied',  'created_utc', 'is_original_content','author_flair_text','is_video','locked','selftext','link_flair_richtext','domain','over_18']
     dynamic_fieldnames = ['score','total_awards_received','upvote_ratio', 'num_comments']
 
-    start_epoch = int(dt.datetime(2020, 8, 27).timestamp())
+    start_epoch = int(dt.datetime(2020, 10, 4).timestamp())
     end_epoch = int(dt.datetime(2020, 12, 31).timestamp())
     interval = 22*60*60
 
@@ -70,14 +70,7 @@ def main():
             epoch_process_times = []
 
             
-            suffix = 0
-            path = ""
-            while True:
-                path = "posts_"+subreddit+"_"+str(suffix)+".csv"
-                if Path(path).is_file() == False:
-                    util.debug("Writing r/"+subreddit+" to: "+path)
-                    break
-                suffix += 1
+            path = util.get_next_file("./data/posts_20_"+subreddit, "csv")
                 
             header = static_fieldnames+dynamic_fieldnames+['epoch','datetime']
             
