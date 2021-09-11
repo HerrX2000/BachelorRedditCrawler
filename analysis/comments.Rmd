@@ -16,6 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r libs}
 library(pacman)
+month_abb <- c(1,2,3,4,5,6,7,8,9,10,11,12)
 p_load(RColorBrewer, # color pallets
        ggplot2, # reportable graphs
        cowplot, # arranges ggplot graphs nicely
@@ -26,13 +27,12 @@ p_load(RColorBrewer, # color pallets
 ```
 
 ### Import data set
-```{r import}
-df_berlin <- read.csv("comments_berlin_2020.csv")
-df_germany <- read.csv("comments_de_2020.csv")
-df_europe <- read.csv("comments_europe_2020.csv")
-df_berlin$author_fullname <- NULL
-df_germany$author_fullname <- NULL
-df <- rbind(df_berlin, df_germany, df_europe)
+```{r import, cache=TRUE, cache.lazy = FALSE}
+df <- read.csv(paste("data/comments/comments_subs_20_",1,"_",month.name[1],"_0.csv", sep=""))
+for (month in 2:12){
+  df_month <- read.csv(paste("data/comments/comments_subs_20_",month,"_",month.name[month],"_0.csv", sep=""))
+  df <- rbind(df, df_month)
+}
 ```
 
 ### Inspect
@@ -43,6 +43,7 @@ df$send_replies <- as.logical(df$send_replies)
 df$subreddit <- as.factor(df$subreddit)
 df$no_follow <- as.logical(df$no_follow)
 df$stickied <- as.logical(df$stickied)
+df$locked <- as.logical(df$locked)
 df$subreddit <- as.factor(df$subreddit)
 df$date <- as.Date(df$datetime)
 df$steward_reports <- as.factor(df$steward_reports)
@@ -69,26 +70,147 @@ to_interval <- function(anchor.date, future.date, interval.days){
   round(as.integer(future.date - anchor.date) / interval.days, 0)
 }
 
-df$week_interval <- to_interval(as.Date('2020-01-01'), 
+df$interval <- to_interval(as.Date('2020-01-01'), 
                           df$date, 7 )
+
+df$interval <- factor(df$interval)
 
 df$month <- format(df$date, "%m")
 df$month <- factor(df$month)
+
+count(df[df$stickied == TRUE,])
 
 df <- df[!(df$stickied == TRUE),]
 
 str(df)
 
 ```
+
 ### Data Visualisation
 ```{r visualisation}
 data.frame(table(df$month))
 
-dfwi <- data.frame(table(df$week_interval))
+dfwi <- data.frame(table(df$interval))
 dfwi
 
 
-tbl <- with(df, table(subreddit, week_interval))
-ggplot(as.data.frame(tbl), aes(factor(week_interval), Freq, fill = subreddit)) +     
+tbl <- with(df, table(subreddit, interval))
+ggplot(as.data.frame(tbl), aes(factor(interval), Freq, fill = subreddit)) +     
   geom_col(position = 'dodge')
+
+
+
+Gini(dfwi$Freq)
+
+nrow(df)
+df_with_acc <- na.omit(df)
+nrow(df_with_acc)
+
+#df_with_acc <- df_with_acc[df_with_acc$score > 10,]
+
+ 
+
+df_subs <- data.frame(
+                 interval=character(),
+                 gini_post_dist=double(),
+                 gini_score_dist=double(),
+                 subreddit=factor(levels = levels(df_with_acc$subreddit)),
+                 contributors = integer(),
+                 total_posts = integer(),
+                 turnover = double(),
+                 stringsAsFactors=TRUE
+                 )
+
+for (subreddit in levels(df_with_acc$subreddit)){
+  df_subreddit <- df_with_acc[df_with_acc$subreddit == subreddit, ]
+  df_author_prev_interval <- NULL
+  for (interval in unique(df_subreddit$interval)){
+    df_7day <- df_subreddit[df_subreddit$interval == interval, ]
+    
+    df_author_posts <- count(df_7day, vars = "author")
+    
+    df_author_score <- aggregate(df_7day$score, by=list(author=df_7day$author), FUN=sum)
+  
+    
+    df_author <- merge(df_author_posts, df_author_score, by="author")
+    df_author$score_per_post <- df_author$x / df_author$freq
+    df_author$perc_of_total_post <- df_author$freq / length(df_author)
+    "
+     To calculate the coefficient, we divided 
+    the average difference in the number of comments posted by 
+    each possible pair of users who contributed to a given sub-
+    reddit during a given month by the number of UCs for that 
+    month in that subreddit.
+    (see ref paper)
+    where xi = number of comments by UC in a given month in a 
+    given subreddit and n = number of UCs in a given month in a 
+    given subreddit.
+    "
+    gini_score_dist <- Gini(df_author$score_per_post)
+    gini_post_dist <- Gini(df_author$freq)
+    
+    #todo: test if turnover is calculated correctly
+    "
+    Turnover  was  determined  by  comparing  a  list  of  
+    UCs who contributed to discourse in a given subreddit dur-
+    ing  a  given  month  to  a  list  of  UCs  who  contributed  to  dis-
+    course in that same subreddit during the subsequent month. 
+    Our  turnover  metric  is  an  expression  of  the  percentage  of  
+    UCs  that  are  not  retained  from  one  month  to  the  next  in  a  
+    given subreddit.
+    (see ref paper)
+    where  UCi = UCs  in  month  i  and  UCi+1  =  UCs  in  the  month  
+    after month i.
+    If all UCs who contributed to discourse in the first month 
+    also contributed in the second month, turnover was equal to 
+    0. If no UCs who contributed to discourse in the first month 
+    also contributed in the second month, turnover was equal to 
+    1 (M = .65;  SD = .13).
+    "
+    turnover <- double()
+    if(is.null(df_author_prev_interval)){
+      turnover <- NA
+    }
+    else{
+      df_author_intersect <- intersect(df_author$author, df_author_prev_interval)
+      turnover <- 1 - (length(df_author_intersect) / length(df_author$author))
+    }
+    
+    df_sub <- data.frame(
+                   interval=interval,
+                   gini_post_dist=gini_post_dist,
+                   gini_score_dist=gini_score_dist,
+                   subreddit=subreddit,
+                   contributors = length(unique(df_7day$author)),
+                   total_posts = length(df_7day$id),
+                   turnover = turnover,
+                   stringsAsFactors=TRUE
+                   )
+    df_author_prev_interval <- df_author$author
+    df_subs <- rbind(df_subs, df_sub)
+  }
+}
+
+df_subs$contributors <- log(df_subs$contributors)
+
+df_subs$is_berlin <- df_subs$subreddit == "berlin"
+df_subs$is_de <- df_subs$subreddit == "de"
+
+df_subs$interval <-as.numeric(as.character(df_subs$interval))
+
+ggplot(df_subs, aes(x=interval, y=gini_post_dist, group = subreddit, color = subreddit)) +
+  geom_point() 
+
+ggplot(df_subs, aes(x=interval, y=gini_score_dist, group = subreddit, color = subreddit)) +
+  geom_point() 
+
+ggplot(df_subs, aes(x=interval, y=contributors, group = subreddit, color = subreddit)) +
+  geom_point()
+
+ggplot(df_subs, aes(x=interval, y=total_posts, group = subreddit, color = subreddit)) +
+  geom_point()
+
+ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=interval, y=turnover, group = subreddit, color = subreddit)) +
+  geom_point()
+
 ```
