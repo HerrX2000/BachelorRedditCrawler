@@ -11,3 +11,4 @@ __pycache__/
 downloads/
 dump/
 !analysis/data/subreddits.csv
+.Rproj.user

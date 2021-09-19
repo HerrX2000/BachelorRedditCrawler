@@ -9,12 +9,14 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+Sys.setenv(LANG = "en")
 ```
 
 ## Comments
 
 
 ```{r libs}
+options(repos='http://cran.rstudio.com/')
 library(pacman)
 month_abb <- c(1,2,3,4,5,6,7,8,9,10,11,12)
 p_load(RColorBrewer, # color pallets
@@ -23,7 +25,9 @@ p_load(RColorBrewer, # color pallets
        stargazer,
        MASS,
        DescTools,
-       plyr) 
+       dplyr,
+       psych,
+       irr) 
 ```
 
 ### Import data set
@@ -73,7 +77,7 @@ str(df)
 ```
 
 ### Categorization of subreddits
-```{r import_subreddit_categorization}
+```{r import_categorization}
 sub_meta <- read.csv("data/subreddits.csv")
 sub_meta$subreddit <- as.factor(sub_meta$subreddit)
 str(sub_meta)
@@ -95,17 +99,7 @@ colSums(is.na(df))
 (nrow(df) - nrow(na.omit(df))) / nrow(df)
 
 
-to_interval <- function(anchor.date, future.date, interval.days){
-  round(as.integer(future.date - anchor.date) / interval.days, 0)+1 #interval starts at 1
-}
 
-df$interval <- to_interval(as.Date('2020-01-01'), 
-                          df$date, 7 )
-
-df$interval <- factor(df$interval)
-
-df$month <- format(df$date, "%m")
-df$month <- factor(df$month) #another way of making intervals, but not used in analysis.
 
 nrow(subset(df, stickied == TRUE))
 
@@ -115,21 +109,46 @@ df <- df[!(df$stickied == TRUE),]
 str(df)
 
 ```
+### Data Set Stats
+```{r stats_dataset}
+#Contributions pro Subreddit
+df_sub_con <- df %>% count(subreddit)
+df_sub_con
+
+#Unique Contributors pro Subreddit
+df_sub_uc <- df %>%
+  group_by(subreddit) %>%
+  summarise(unique_contributors = n_distinct(author))
+df_sub_uc
+
+mean(df_sub_uc$unique_contributors)
+sd(df_sub_uc$unique_contributors) 
+```
 
 ### Calculations
 ```{r calculations}
+to_interval <- function(anchor.date, future.date, interval.days){
+  round(as.integer(future.date - anchor.date) / interval.days, 0)+1 #interval starts at 1
+}
+
+df$interval <- to_interval(as.Date('2020-01-01'), 
+                          df$date, 14 )
+
+df$interval <- factor(df$interval)
+
+df$month <- format(df$date, "%m")
+df$month <- factor(df$month) #another way of making intervals, but not used in analysis.
+
 data.frame(table(df$month))
 
 dfwi <- data.frame(table(df$interval))
 dfwi
 
 
-#Contributions pro Subreddit
-summary(count(df, vars = "subrredit"))
 
-#Unique Contributors pro Subreddit
-summary(count(df, vars=c("subrredit","author")) )
 
+#count(df, vars =c("subreddit", "subreddit"))
+#df = df.groupby('subreddit')['subreddit'].nunique()
 
 
 tbl <- with(df, table(subreddit, interval))
@@ -162,19 +181,19 @@ df_subs <- data.frame(
 for (subreddit in levels(df_with_acc$subreddit)){
   df_subreddit <- df_with_acc[df_with_acc$subreddit == subreddit, ]
   df_author_prev_interval <- NULL
+  
   #53 interval omit because it would just be a single day if 365 days are divided by 7
-  for (interval in 1:52){
-    
+  for (interval in head( unique(df_subreddit$interval), -1)){
     #Get df for the interval
     df_7day <- df_subreddit[df_subreddit$interval == interval, ]
     
     if(nrow(df_7day) == 0){
+      #This should never occure and is here so the script does not crash when loading the data partially
       warning("Empty interval")
       next
     }
-    
     #Posts per Author
-    df_author_comments <- count(df_7day, vars = "author")
+    df_author_comments <- (df_7day %>% count(author))
     
     #Sum of score per author
     
@@ -183,7 +202,7 @@ for (subreddit in levels(df_with_acc$subreddit)){
   
     
     df_author <- merge(df_author_comments, df_author_score, by="author")
-    df_author$score_per_comment <- df_author$x / df_author$freq #Average comment score
+    df_author$score_per_comment <- df_author$x / df_author$n #Average comment score
     #df_author$perc_of_total_comments <- df_author$freq / length(df_author)
     "
      To calculate the coefficient, we divided 
@@ -196,7 +215,7 @@ for (subreddit in levels(df_with_acc$subreddit)){
     given subreddit and n = number of UCs in a given month in a 
     given subreddit.
     "
-    gini_comment_dist <- Gini(df_author$freq)
+    gini_comment_dist <- Gini(df_author$n)
     
     "
     Gini for score (not used in paper)
@@ -248,6 +267,8 @@ for (subreddit in levels(df_with_acc$subreddit)){
   }
 }
 
+#df_subs$avg_contributors <- aggregate(df_subs$contributors, by=list(subreddit=df_subs$subreddit), FUN=mean)
+
 #Add categorisation to the df for subs
 "
 df_subs$is_city <- sub_meta$is_city[sub_meta$subreddit == df_subs$subreddit]
@@ -261,14 +282,21 @@ df_subs$is_continent <- sub_meta$is_continent[sub_meta$subreddit == df_subs$subr
 df_subs <- merge(df_subs, sub_meta, by="subreddit", fill=NA)
 df_subs$group <- ifelse(df_subs$is_continent == TRUE, 1, ifelse(df_subs$is_country == TRUE, 2, 3))
 str(df_subs)
+
+df_subs$contributors_original <- df_subs$contributors
+#contributors log transofrmed (unique commenters in ref paper)
+df_subs$contributors <- log(df_subs$contributors)
+```
+
+### Calculated Subreddit Data Set Stats
+```{r stats_subreddits}
+mean(df_subs$contributors_original)
+sd(df_subs$contributors_original) 
 ```
 
 
 ### Data Visualisation
 ```{r visualisation, eval = TRUE}
-
-#contributors log transofrmed (unique commenters in ref paper)
-df_subs$contributors <- log(df_subs$contributors)
 
 
 df_subs$interval <-as.numeric(as.character(df_subs$interval))
@@ -276,8 +304,10 @@ df_subs$interval <-as.numeric(as.character(df_subs$interval))
 ggplot(df_subs, aes(x=interval, y=gini_comment_dist, group = group, color = subreddit)) +
   geom_point() 
 
+"
 ggplot(df_subs, aes(x=interval, y=gini_score_dist, group = group, color = subreddit)) +
   geom_point() 
+"
 
 ggplot(df_subs, aes(x=interval, y=contributors, group = group, color = subreddit)) +
   geom_point()
@@ -291,24 +321,37 @@ ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=interval, y=turnover, group = g
 str(df_subs)
 summary(df_subs)
 ```
+### Testing ANOVA / 
+```{r anova}
+#https://www.youtube.com/watch?v=GctGncQrJew
+#describeBy(df_subs$gini_comment_dist, df_subs$subreddit)
+df_subs_cities <- df_subs[df_subs$is_city==TRUE,]
+summary(aov(df_subs_cities$gini_comment_dist ~ df_subs_cities$subreddit))
+pairwise.t.test(df_subs_cities$gini_comment_dist, df_subs_cities$subreddit)
 
+
+#describeBy(df_subs_cities$turnover, df_subs_cities$subreddit)
+summary(aov(df_subs_cities$turnover ~ df_subs_cities$subreddit))
+pairwise.t.test(df_subs_cities$turnover, df_subs_cities$subreddit)
+
+```
 
 ### Models
 ```{r models, eval = TRUE}
-#For LMs checking for group effect is_continent is the reference.
+#For LMs checking for group effect is_english_county is the reference.
 
 mean(df_subs$gini_comment_dist)
 
-ggplot(df_subs, aes(x=contributors, y=gini_comment_dist, group = group, color = subreddit)) +
+ggplot(df_subs, aes(x=contributors, y=gini_comment_dist, group = group, color = group)) +
   geom_point() +
   geom_smooth(method='lm', formula= y~x) +
   ylim(0,1) +
   ggtitle("UCs predicting concentration of participation")
 
-lm_model <- lm(gini_comment_dist ~ contributors, data = df_subs)
+lm_model <- lm(gini_comment_dist ~ contributors + interval, data = df_subs)
 summary(lm_model)
 
-lm_model <- lm(gini_comment_dist ~ contributors + interval + is_city + is_country , data = df_subs)
+lm_model <- lm(gini_comment_dist ~ contributors + interval + is_city + is_country_native + is_country_bi + is_continent  , data = df_subs)
 summary(lm_model)
 
 "
@@ -325,16 +368,20 @@ lm_model <- lm(gini_score_dist ~ contributors + interval + is_city + is_country 
 summary(lm_model)
 "
 
-ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=contributors, y=turnover, group = group, color = subreddit)) +
+ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=contributors, y=turnover, group = group, color = group)) +
   geom_point() +
   geom_smooth(method='lm', formula= y~x) +
   ylim(0,1) +
   ggtitle("UCs predicting turnover")
 
-lm_model <- lm(turnover ~ contributors, data = df_subs)
+lm_model <- lm(turnover ~ contributors + interval, data = df_subs)
 summary(lm_model)
 
-lm_model <- lm(turnover ~ contributors + interval + is_city + is_country, data = df_subs)
+
+lm_model <- lm(turnover ~ contributors + interval + is_city + is_country_native + is_country_bi + is_continent, data = df_subs)
+summary(lm_model)
+
+lm_model <- lm(turnover ~ is_city + is_country_native + is_country_bi + is_continent, data = df_subs)
 summary(lm_model)
 
 ```
