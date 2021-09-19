@@ -283,9 +283,8 @@ df_subs <- merge(df_subs, sub_meta, by="subreddit", fill=NA)
 df_subs$group <- ifelse(df_subs$is_continent == TRUE, 1, ifelse(df_subs$is_country == TRUE, 2, 3))
 str(df_subs)
 
-df_subs$contributors_original <- df_subs$contributors
 #contributors log transofrmed (unique commenters in ref paper)
-df_subs$contributors <- log(df_subs$contributors)
+df_subs$log_contributors <- log(df_subs$contributors)
 ```
 
 ### Calculated Subreddit Data Set Stats
@@ -336,22 +335,27 @@ pairwise.t.test(df_subs_cities$turnover, df_subs_cities$subreddit)
 
 ```
 
+```{r}
+icc(df_subs,type = "agreement", unit = "single")
+```
+
+
 ### Models
 ```{r models, eval = TRUE}
 #For LMs checking for group effect is_english_county is the reference.
 
 mean(df_subs$gini_comment_dist)
 
-ggplot(df_subs, aes(x=contributors, y=gini_comment_dist, group = group, color = group)) +
+ggplot(df_subs, aes(x=contributors, y=gini_comment_dist, group = NULL, color = group)) +
   geom_point() +
   geom_smooth(method='lm', formula= y~x) +
   ylim(0,1) +
   ggtitle("UCs predicting concentration of participation")
 
-lm_model <- lm(gini_comment_dist ~ contributors + interval, data = df_subs)
+lm_model <- lm(gini_comment_dist ~ log_contributors + interval, data = df_subs)
 summary(lm_model)
 
-lm_model <- lm(gini_comment_dist ~ contributors + interval + is_city + is_country_native + is_country_bi + is_continent  , data = df_subs)
+lm_model <- lm(gini_comment_dist ~ log_contributors + interval + is_city + is_country_native + is_country_bi + is_continent  , data = df_subs)
 summary(lm_model)
 
 "
@@ -368,20 +372,23 @@ lm_model <- lm(gini_score_dist ~ contributors + interval + is_city + is_country 
 summary(lm_model)
 "
 
-ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=contributors, y=turnover, group = group, color = group)) +
+ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=contributors, y=turnover, group = NULL, color = group)) +
   geom_point() +
   geom_smooth(method='lm', formula= y~x) +
   ylim(0,1) +
   ggtitle("UCs predicting turnover")
 
-lm_model <- lm(turnover ~ contributors + interval, data = df_subs)
+lm_model <- lm(turnover ~ log_contributors + interval, data = df_subs)
 summary(lm_model)
 
 
-lm_model <- lm(turnover ~ contributors + interval + is_city + is_country_native + is_country_bi + is_continent, data = df_subs)
+lm_model <- lm(turnover ~ log_contributors + interval + is_city + is_country_native + is_country_bi + is_continent, data = df_subs)
 summary(lm_model)
 
 lm_model <- lm(turnover ~ is_city + is_country_native + is_country_bi + is_continent, data = df_subs)
+summary(lm_model)
+
+lm_model <- lm(turnover ~ gini_comment_dist, data = df_subs)
 summary(lm_model)
 
 ```
