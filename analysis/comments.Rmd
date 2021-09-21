@@ -27,6 +27,7 @@ p_load(RColorBrewer, # color pallets
        DescTools,
        dplyr,
        psych,
+       svglite,
        irr) 
 ```
 
@@ -126,7 +127,7 @@ sd(df_sub_uc$unique_contributors)
 ```
 
 ### Calculations
-```{r calculations}
+```{r calculations_1}
 to_interval <- function(anchor.date, future.date, interval.days){
   round(as.integer(future.date - anchor.date) / interval.days, 0)+1 #interval starts at 1
 }
@@ -136,8 +137,8 @@ df$interval <- to_interval(as.Date('2020-01-01'),
 
 df$interval <- factor(df$interval)
 
-df$month <- format(df$date, "%m")
-df$month <- factor(df$month) #another way of making intervals, but not used in analysis.
+#df$month <- format(df$date, "%m")
+#df$month <- factor(df$month) #another way of making intervals, but not used in analysis.
 
 data.frame(table(df$month))
 
@@ -266,7 +267,9 @@ for (subreddit in levels(df_with_acc$subreddit)){
     df_subs <- rbind(df_subs, df_sub)
   }
 }
-
+```
+### Calculations
+```{r calculations_2}
 #df_subs$avg_contributors <- aggregate(df_subs$contributors, by=list(subreddit=df_subs$subreddit), FUN=mean)
 
 #Add categorisation to the df for subs
@@ -280,7 +283,14 @@ df_subs$is_continent <- sub_meta$is_continent[sub_meta$subreddit == df_subs$subr
 "
 
 df_subs <- merge(df_subs, sub_meta, by="subreddit", fill=NA)
-df_subs$group <- ifelse(df_subs$is_continent == TRUE, 1, ifelse(df_subs$is_country == TRUE, 2, 3))
+df_subs$group <- ifelse(df_subs$is_continent == TRUE, 1,
+                        ifelse(df_subs$is_country == TRUE,
+                               ifelse(df_subs$is_country_english == TRUE, 2.1,
+                                      ifelse(df_subs$is_country_bi == TRUE, 2.2, 2.3)
+                               ),3))
+
+df_subs$group <- as.factor(df_subs$group)
+
 str(df_subs)
 
 #contributors log transofrmed (unique commenters in ref paper)
@@ -295,7 +305,7 @@ sd(df_subs$contributors_original)
 
 
 ### Data Visualisation
-```{r visualisation, eval = TRUE}
+```{r visualisation, eval = FALSE}
 
 
 df_subs$interval <-as.numeric(as.character(df_subs$interval))
@@ -325,18 +335,18 @@ summary(df_subs)
 #https://www.youtube.com/watch?v=GctGncQrJew
 #describeBy(df_subs$gini_comment_dist, df_subs$subreddit)
 df_subs_cities <- df_subs[df_subs$is_city==TRUE,]
-summary(aov(df_subs_cities$gini_comment_dist ~ df_subs_cities$subreddit))
+summary(aov(df_subs$gini_comment_dist ~ df_subs$subreddit))
 pairwise.t.test(df_subs_cities$gini_comment_dist, df_subs_cities$subreddit)
 
 
 #describeBy(df_subs_cities$turnover, df_subs_cities$subreddit)
-summary(aov(df_subs_cities$turnover ~ df_subs_cities$subreddit))
+summary(aov(df_subs$turnover ~ df_subs$subreddit))
 pairwise.t.test(df_subs_cities$turnover, df_subs_cities$subreddit)
 
 ```
 
 ```{r}
-icc(df_subs,type = "agreement", unit = "single")
+#icc(df_subs,type = "agreement", unit = "single")
 ```
 
 
@@ -346,11 +356,22 @@ icc(df_subs,type = "agreement", unit = "single")
 
 mean(df_subs$gini_comment_dist)
 
-ggplot(df_subs, aes(x=contributors, y=gini_comment_dist, group = NULL, color = group)) +
-  geom_point() +
+category_colors <- c("1" = "#000000", "2.1" = "#000099", "2.2" ="#1144bb", "2.3" = "#5577EE", "3" = "#e6ac00")
+category_labels <- c("1" = "Continent", "2.1" = "Country Eng.", "2.2" ="Country Bil.", "2.3" = "Country native", "3" = "City")
+
+ggplot(df_subs, aes(x=contributors, y=gini_comment_dist, group = NULL, color = NULL)) +
+  geom_point(aes(color=factor(group))) +
   geom_smooth(method='lm', formula= y~x) +
+  scale_x_continuous(trans='log2') +
   ylim(0,1) +
-  ggtitle("UCs predicting concentration of participation")
+  ggtitle("UCs predicting concentration of participation")+
+  ylab("Concentration of participation (Gini)") +
+  xlab("Unique contributor/Week (log2)")+
+  scale_color_manual(name = "Group", values=category_colors, labels=category_labels)
+
+
+ggsave(path = "comments_files/figure-png/", filename = "gini_distribution.svg", device='svg')
+ggsave(path = "comments_files/figure-png/", filename = "gini_distribution.png", device='png')
 
 lm_model <- lm(gini_comment_dist ~ log_contributors + interval, data = df_subs)
 summary(lm_model)
@@ -372,11 +393,18 @@ lm_model <- lm(gini_score_dist ~ contributors + interval + is_city + is_country 
 summary(lm_model)
 "
 
-ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=contributors, y=turnover, group = NULL, color = group)) +
-  geom_point() +
+ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=contributors, y=turnover)) +
+  geom_point(aes(color = factor(group))) +
   geom_smooth(method='lm', formula= y~x) +
+  scale_x_continuous(trans='log2') +
   ylim(0,1) +
-  ggtitle("UCs predicting turnover")
+  ggtitle("UCs predicting turnover")+
+  ylab("Turnover") +
+  xlab("Unique contributor/Week (log2)")+
+  scale_color_manual(name = "Group", values=category_colors, labels=category_labels)
+
+ggsave(path = "comments_files/figure-png/", filename = "turnover_distribution.svg", device='svg')
+ggsave(path = "comments_files/figure-png/", filename = "turnover_distribution.png", device='png')
 
 lm_model <- lm(turnover ~ log_contributors + interval, data = df_subs)
 summary(lm_model)
