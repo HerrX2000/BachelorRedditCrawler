@@ -30,42 +30,42 @@ p_load(RColorBrewer, # color pallets
 
 ### Import data set
 ```{r import, cache=TRUE}
-df_berlin <- read.csv("data/posts/posts_berlin_2020.csv")
-df_germany <- read.csv("data/posts/posts_de_2020.csv")
-df_europe <- read.csv("data/posts/posts_europe_2020.csv")
-df <- rbind(df_berlin, df_germany, df_europe)
+df2_berlin <- read.csv("data/posts/posts_berlin_2020.csv")
+df2_germany <- read.csv("data/posts/posts_de_2020.csv")
+df2_europe <- read.csv("data/posts/posts_europe_2020.csv")
+df2 <- rbind(df2_berlin, df2_germany, df2_europe)
 ```
 
 ### Inspect
 ```{r inspect}
-df$over_18 <- as.logical(df$over_18)
-df$locked <- as.logical(df$locked)
-df$is_video <- as.logical(df$is_video)
-df$is_original_content <- as.logical(df$is_original_content)
-df$stickied <- as.logical(df$stickied)
-df$subreddit <- as.factor(df$subreddit)
+df2$over_18 <- as.logical(df2$over_18)
+df2$locked <- as.logical(df2$locked)
+df2$is_video <- as.logical(df2$is_video)
+df2$is_original_content <- as.logical(df2$is_original_content)
+df2$stickied <- as.logical(df2$stickied)
+df2$subreddit <- as.factor(df2$subreddit)
 
-str(df)
+str(df2)
 ```
 
 ### Preprocess: Treat missing values, if applicable
 ```{r preprocess}
-df$author_fullname[df$author_fullname == "NULL"] <- NA
-df$author[df$author == ""] <- NA
-df$selftext[df$selftext == "[deleted]"] <- NA
-nrow(df)
-df <-df[!duplicated(df$id), ]
-nrow(df)
+df2$author_fullname[df2$author_fullname == "NULL"] <- NA
+df2$author[df2$author == ""] <- NA
+df2$selftext[df2$selftext == "[deleted]"] <- NA
+nrow(df2)
+df2 <-df2[!duplicated(df2$id), ]
+nrow(df2)
 
 # Track down variables with missing values
-sum(is.na(df))
-colSums(is.na(df))
+sum(is.na(df2))
+colSums(is.na(df2))
 
 # Check the percentage of missing values in the data set
-(nrow(df) - nrow(na.omit(df))) / nrow(df)
+(nrow(df2) - nrow(na.omit(df2))) / nrow(df2)
 
 
-df$date <- as.Date(df$datetime)
+df2$date <- as.Date(df2$datetime)
 
 
 
@@ -73,70 +73,70 @@ to_interval <- function(anchor.date, future.date, interval.days){
   round(as.integer(future.date - anchor.date) / interval.days, 0)
 }
 
-df$interval <- to_interval(as.Date('2020-01-01'), 
-                          df$date, 7 )
+df2$interval <- to_interval(as.Date('2020-01-01'), 
+                          df2$date, 7 )
 
-df$interval <- factor(df$interval)
+df2$interval <- factor(df2$interval)
 
-df$month <- format(df$date, "%m")
-df$month <- factor(df$month)
+df2$month <- format(df2$date, "%m")
+df2$month <- factor(df2$month)
 
-count(df[df$stickied == TRUE,])
+count(df2[df2$stickied == TRUE,])
 
-df <- df[!(df$stickied == TRUE),]
+df2 <- df2[!(df2$stickied == TRUE),]
 
-str(df)
+str(df2)
 ```
 
 ### Calculations
 ```{r calculations}
-data.frame(table(df$month))
+data.frame(table(df2$month))
 
-dfwi <- data.frame(table(df$interval))
-dfwi
+df2wi <- data.frame(table(df2$interval))
+df2wi
 
 
-tbl <- with(df, table(subreddit, interval))
+tbl <- with(df2, table(subreddit, interval))
 ggplot(as.data.frame(tbl), aes(factor(interval), Freq, fill = subreddit)) +     
   geom_col(position = 'dodge')
 
 
 
-Gini(dfwi$Freq)
+Gini(df2wi$Freq)
 
-nrow(df)
-df_with_acc <- na.omit(df)
-nrow(df_with_acc)
+nrow(df2)
+df2_with_acc <- na.omit(df2)
+nrow(df2_with_acc)
 
-#df_with_acc <- df_with_acc[df_with_acc$score > 10,]
+#df2_with_acc <- df2_with_acc[df2_with_acc$score > 10,]
 
  
 
-df_subs <- data.frame(
+df2_subs <- data.frame(
                  interval=character(),
                  gini_post_dist=double(),
                  gini_score_dist=double(),
-                 subreddit=factor(levels = levels(df_with_acc$subreddit)),
+                 subreddit=factor(levels = levels(df2_with_acc$subreddit)),
                  contributors = integer(),
                  total_posts = integer(),
                  turnover = double(),
                  stringsAsFactors=TRUE
                  )
 
-for (subreddit in levels(df_with_acc$subreddit)){
-  df_subreddit <- df_with_acc[df_with_acc$subreddit == subreddit, ]
-  df_author_prev_interval <- NULL
-  for (interval in unique(df_subreddit$interval)){
-    df_7day <- df_subreddit[df_subreddit$interval == interval, ]
+for (subreddit in levels(df2_with_acc$subreddit)){
+  df2_subreddit <- df2_with_acc[df2_with_acc$subreddit == subreddit, ]
+  df2_author_prev_interval <- NULL
+  for (interval in unique(df2_subreddit$interval)){
+    df2_7day <- df2_subreddit[df2_subreddit$interval == interval, ]
     
-    df_author_posts <- count(df_7day, vars = "author")
+    df2_author_posts <- count(df2_7day, vars = "author")
     
-    df_author_score <- aggregate(df_7day$score, by=list(author=df_7day$author), FUN=sum)
+    df2_author_score <- aggregate(df2_7day$score, by=list(author=df2_7day$author), FUN=sum)
   
     
-    df_author <- merge(df_author_posts, df_author_score, by="author")
-    df_author$score_per_post <- df_author$x / df_author$freq
-    df_author$perc_of_total_post <- df_author$freq / length(df_author)
+    df2_author <- merge(df2_author_posts, df2_author_score, by="author")
+    df2_author$score_per_post <- df2_author$x / df2_author$freq
+    df2_author$perc_of_total_post <- df2_author$freq / length(df2_author)
     "
      To calculate the coefficient, we divided 
     the average difference in the number of comments posted by 
@@ -148,8 +148,8 @@ for (subreddit in levels(df_with_acc$subreddit)){
     given subreddit and n = number of UCs in a given month in a 
     given subreddit.
     "
-    gini_score_dist <- Gini(df_author$score_per_post)
-    gini_post_dist <- Gini(df_author$freq)
+    gini_score_dist <- Gini(df2_author$score_per_post)
+    gini_post_dist <- Gini(df2_author$freq)
     
     #todo: test if turnover is calculated correctly
     "
@@ -170,35 +170,35 @@ for (subreddit in levels(df_with_acc$subreddit)){
     1 (M = .65;  SD = .13).
     "
     turnover <- double()
-    if(is.null(df_author_prev_interval)){
+    if(is.null(df2_author_prev_interval)){
       turnover <- NA
     }
     else{
-      df_author_intersect <- intersect(df_author$author, df_author_prev_interval)
-      turnover <- 1 - (length(df_author_intersect) / length(df_author$author))
+      df2_author_intersect <- intersect(df2_author$author, df2_author_prev_interval)
+      turnover <- 1 - (length(df2_author_intersect) / length(df2_author$author))
     }
     
-    df_sub <- data.frame(
+    df2_sub <- data.frame(
                    interval=interval,
                    gini_post_dist=gini_post_dist,
                    gini_score_dist=gini_score_dist,
                    subreddit=subreddit,
-                   contributors = length(unique(df_7day$author)),
-                   total_posts = length(df_7day$id),
+                   contributors = length(unique(df2_7day$author)),
+                   total_posts = length(df2_7day$id),
                    turnover = turnover,
                    stringsAsFactors=TRUE
                    )
-    df_author_prev_interval <- df_author$author
-    df_subs <- rbind(df_subs, df_sub)
+    df2_author_prev_interval <- df2_author$author
+    df2_subs <- rbind(df2_subs, df2_sub)
   }
 }
 
-df_subs$log_contributors <- log(df_subs$contributors)
+df2_subs$log_contributors <- log(df2_subs$contributors)
 
-df_subs$is_berlin <- df_subs$subreddit == "berlin"
-df_subs$is_de <- df_subs$subreddit == "de"
+df2_subs$is_berlin <- df2_subs$subreddit == "berlin"
+df2_subs$is_de <- df2_subs$subreddit == "de"
 
-df_subs$interval <-as.numeric(as.character(df_subs$interval))
+df2_subs$interval <-as.numeric(as.character(df2_subs$interval))
 ```
 
 ### Data Visualisation
@@ -208,59 +208,59 @@ Used to check for incomplette data or outliers
 
 
 
-str(df_subs)
-summary(df_subs)
+str(df2_subs)
+summary(df2_subs)
 
-ggplot(df_subs, aes(x=interval, y=gini_post_dist, group = subreddit, color = subreddit)) +
+ggplot(df2_subs, aes(x=interval, y=gini_post_dist, group = subreddit, color = subreddit)) +
   geom_point() 
 
-ggplot(df_subs, aes(x=interval, y=gini_score_dist, group = subreddit, color = subreddit)) +
+ggplot(df2_subs, aes(x=interval, y=gini_score_dist, group = subreddit, color = subreddit)) +
   geom_point() 
 
-ggplot(df_subs, aes(x=interval, y=contributors, group = subreddit, color = subreddit)) +
+ggplot(df2_subs, aes(x=interval, y=contributors, group = subreddit, color = subreddit)) +
   geom_point()
 
-ggplot(df_subs, aes(x=interval, y=total_posts, group = subreddit, color = subreddit)) +
+ggplot(df2_subs, aes(x=interval, y=total_posts, group = subreddit, color = subreddit)) +
   geom_point()
 
-ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=interval, y=turnover, group = subreddit, color = subreddit)) +
+ggplot(df2_subs[!is.na(df2_subs$turnover),], aes(x=interval, y=turnover, group = subreddit, color = subreddit)) +
   geom_point()
 
 ```
 
 ### Models
 ```{r models}
-mean(df_subs$gini_post_dist)
+mean(df2_subs$gini_post_dist)
 
-ggplot(df_subs, aes(x=contributors, y=gini_post_dist)) +
+ggplot(df2_subs, aes(x=contributors, y=gini_post_dist)) +
   geom_point(aes(color = factor(subreddit))) +
   geom_smooth(method='lm', formula= y~x) +
   ylim(0,1) +
   scale_x_continuous(trans='log2')+
   labs(title = "UP predicting distribution of participation", x = "Unique contributor/Week (log2)", y = "Turnover", color = "Subreddits")
 
-lm_model <- lm(gini_post_dist ~ log_contributors, data = df_subs)
+lm_model <- lm(gini_post_dist ~ log_contributors, data = df2_subs)
 summary(lm_model)
 
-lm_model <- lm(gini_post_dist ~ log_contributors + interval + is_berlin + is_de , data = df_subs)
+lm_model <- lm(gini_post_dist ~ log_contributors + interval + is_berlin + is_de , data = df2_subs)
 summary(lm_model)
 
 
-ggplot(df_subs, aes(x=contributors, y=gini_score_dist)) +
+ggplot(df2_subs, aes(x=contributors, y=gini_score_dist)) +
   geom_point(aes(color = factor(subreddit))) +
   geom_smooth(method='lm', formula= y~x) +
   ylim(0,1) +
   scale_x_continuous(trans='log2') +
   labs(title = "UP predicting distribution of score", x = "Unique contributor/Week (log2)", y = "Turnover", color = "Subreddits")
 
-lm_model <- lm(gini_score_dist ~ log_contributors, data = df_subs)
+lm_model <- lm(gini_score_dist ~ log_contributors, data = df2_subs)
 summary(lm_model)
 
-lm_model <- lm(gini_score_dist ~ log_contributors + interval + is_berlin + is_de, data = df_subs)
+lm_model <- lm(gini_score_dist ~ log_contributors + interval + is_berlin + is_de, data = df2_subs)
 summary(lm_model)
 
 
-ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=contributors, y=turnover)) +
+ggplot(df2_subs[!is.na(df2_subs$turnover),], aes(x=contributors, y=turnover)) +
   geom_point(aes(color = factor(subreddit))) +
   geom_smooth(method='lm', formula= y~x) +
   ylim(0,1) +
@@ -268,14 +268,14 @@ ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=contributors, y=turnover)) +
   labs(title = "UP predicting turnover", x = "Unique contributor/Week (log2)", y = "Turnover", color = "Subreddits")
   
 
-lm_model <- lm(turnover ~ log_contributors, data = df_subs)
+lm_model <- lm(turnover ~ log_contributors, data = df2_subs)
 summary(lm_model)
 
-lm_model <- lm(turnover ~ log_contributors + interval + is_berlin + is_de, data = df_subs)
+lm_model <- lm(turnover ~ log_contributors + interval + is_berlin + is_de, data = df2_subs)
 summary(lm_model)
 
 "
-agg <- aggregate(df_with_acc$score, by=list(author=df_with_acc$author), FUN=sum)
+agg <- aggregate(df2_with_acc$score, by=list(author=df2_with_acc$author), FUN=sum)
 ggplot(agg, aes(x=author, y=x)) + geom_point()
 "
 
