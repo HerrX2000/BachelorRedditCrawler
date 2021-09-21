@@ -30,9 +30,9 @@ p_load(RColorBrewer, # color pallets
 
 ### Import data set
 ```{r import, cache=TRUE}
-df_berlin <- read.csv("posts_berlin_2020.csv")
-df_germany <- read.csv("posts_de_2020.csv")
-df_europe <- read.csv("posts_europe_2020_partial.csv")
+df_berlin <- read.csv("data/posts/posts_berlin_2020.csv")
+df_germany <- read.csv("data/posts/posts_de_2020.csv")
+df_europe <- read.csv("data/posts/posts_europe_2020.csv")
 df <- rbind(df_berlin, df_germany, df_europe)
 ```
 
@@ -74,7 +74,7 @@ to_interval <- function(anchor.date, future.date, interval.days){
 }
 
 df$interval <- to_interval(as.Date('2020-01-01'), 
-                          df$date, 30 )
+                          df$date, 7 )
 
 df$interval <- factor(df$interval)
 
@@ -88,8 +88,8 @@ df <- df[!(df$stickied == TRUE),]
 str(df)
 ```
 
-### Data Visualisation
-```{r visualisation}
+### Calculations
+```{r calculations}
 data.frame(table(df$month))
 
 dfwi <- data.frame(table(df$interval))
@@ -193,12 +193,23 @@ for (subreddit in levels(df_with_acc$subreddit)){
   }
 }
 
-df_subs$contributors <- log(df_subs$contributors)
+df_subs$log_contributors <- log(df_subs$contributors)
 
 df_subs$is_berlin <- df_subs$subreddit == "berlin"
 df_subs$is_de <- df_subs$subreddit == "de"
 
 df_subs$interval <-as.numeric(as.character(df_subs$interval))
+```
+
+### Data Visualisation
+Used to check for incomplette data or outliers
+```{r visualisation, eval = FALSE}
+
+
+
+
+str(df_subs)
+summary(df_subs)
 
 ggplot(df_subs, aes(x=interval, y=gini_post_dist, group = subreddit, color = subreddit)) +
   geom_point() 
@@ -221,42 +232,46 @@ ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=interval, y=turnover, group = s
 ```{r models}
 mean(df_subs$gini_post_dist)
 
-ggplot(df_subs, aes(x=contributors, y=gini_post_dist, group = subreddit, color = subreddit)) +
-  geom_point() +
+ggplot(df_subs, aes(x=contributors, y=gini_post_dist)) +
+  geom_point(aes(color = factor(subreddit))) +
   geom_smooth(method='lm', formula= y~x) +
   ylim(0,1) +
-  ggtitle("UP predicting distrubition of posts per UP")
+  scale_x_continuous(trans='log2')+
+  labs(title = "UP predicting distribution of participation", x = "Unique contributor/Week (log2)", y = "Turnover", color = "Subreddits")
 
-lm_model <- lm(gini_post_dist ~ contributors, data = df_subs)
+lm_model <- lm(gini_post_dist ~ log_contributors, data = df_subs)
 summary(lm_model)
 
-lm_model <- lm(gini_post_dist ~ contributors + interval + is_berlin + is_de , data = df_subs)
+lm_model <- lm(gini_post_dist ~ log_contributors + interval + is_berlin + is_de , data = df_subs)
 summary(lm_model)
 
 
-ggplot(df_subs, aes(x=contributors, y=gini_score_dist, group = subreddit, color = subreddit)) +
-  geom_point() +
+ggplot(df_subs, aes(x=contributors, y=gini_score_dist)) +
+  geom_point(aes(color = factor(subreddit))) +
   geom_smooth(method='lm', formula= y~x) +
   ylim(0,1) +
-  ggtitle("UP predicting distrubition of posts score per UP")
+  scale_x_continuous(trans='log2') +
+  labs(title = "UP predicting distribution of score", x = "Unique contributor/Week (log2)", y = "Turnover", color = "Subreddits")
 
-lm_model <- lm(gini_score_dist ~ contributors, data = df_subs)
+lm_model <- lm(gini_score_dist ~ log_contributors, data = df_subs)
 summary(lm_model)
 
-lm_model <- lm(gini_score_dist ~ contributors + interval + is_berlin + is_de, data = df_subs)
+lm_model <- lm(gini_score_dist ~ log_contributors + interval + is_berlin + is_de, data = df_subs)
 summary(lm_model)
 
 
-ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=contributors, y=turnover, group = subreddit, color = subreddit)) +
-  geom_point() +
+ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=contributors, y=turnover)) +
+  geom_point(aes(color = factor(subreddit))) +
   geom_smooth(method='lm', formula= y~x) +
   ylim(0,1) +
-  ggtitle("UP predicting turnover")
+  scale_x_continuous(trans='log2') +
+  labs(title = "UP predicting turnover", x = "Unique contributor/Week (log2)", y = "Turnover", color = "Subreddits")
+  
 
-lm_model <- lm(turnover ~ contributors, data = df_subs)
+lm_model <- lm(turnover ~ log_contributors, data = df_subs)
 summary(lm_model)
 
-lm_model <- lm(turnover ~ contributors + interval + is_berlin + is_de, data = df_subs)
+lm_model <- lm(turnover ~ log_contributors + interval + is_berlin + is_de, data = df_subs)
 summary(lm_model)
 
 "
