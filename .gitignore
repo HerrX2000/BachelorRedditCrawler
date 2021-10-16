@@ -5,9 +5,10 @@
 config.xml
 *.txt
 analysis/
+!analysis/*.rmd
+!analysis/*.html
 __pycache__/
 *.pdf
-!analysis/*.rmd
 downloads/
 dump/
 !analysis/data/subreddits.csv

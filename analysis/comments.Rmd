@@ -4,7 +4,6 @@ author: "Frederik Mann"
 date: "15 7 2021"
 output:
   html_document: default
-  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -135,7 +134,7 @@ to_interval <- function(anchor.date, future.date, interval.days){
 df$interval <- to_interval(as.Date('2020-01-01'), 
                           df$date, 14 )
 
-df$interval <- factor(df$interval)
+#$interval <- factor(df$interval)
 
 #df$month <- format(df$date, "%m")
 #df$month <- factor(df$month) #another way of making intervals, but not used in analysis.
@@ -357,7 +356,7 @@ pairwise.t.test(df_subs_cities$turnover, df_subs_cities$subreddit)
 mean(df_subs$gini_comment_dist)
 
 category_colors <- c("1" = "#000000", "2.1" = "#000099", "2.2" ="#1144bb", "2.3" = "#5577EE", "3" = "#e6ac00")
-category_labels <- c("1" = "Continent", "2.1" = "Country Eng.", "2.2" ="Country Bil.", "2.3" = "Country native", "3" = "City")
+category_labels <- c("1" = "Continent", "2.1" = "Country English", "2.2" ="Country Bilingual", "2.3" = "Country Native", "3" = "City")
 
 ggplot(df_subs, aes(x=contributors, y=gini_comment_dist, group = NULL, color = NULL)) +
   geom_point(aes(color=factor(group))) +
@@ -370,7 +369,7 @@ ggplot(df_subs, aes(x=contributors, y=gini_comment_dist, group = NULL, color = N
   scale_color_manual(name = "Group", values=category_colors, labels=category_labels)
 
 
-ggsave(path = "comments_files/figure-png/", filename = "gini_distribution.svg", device='svg')
+ggsave(path = "comments_files/figure-svg/", filename = "gini_distribution.svg", device='svg')
 ggsave(path = "comments_files/figure-png/", filename = "gini_distribution.png", device='png')
 
 lm_model <- lm(gini_comment_dist ~ log_contributors + interval, data = df_subs)
@@ -378,6 +377,8 @@ summary(lm_model)
 
 lm_model <- lm(gini_comment_dist ~ log_contributors + interval + is_city + is_country_native + is_country_bi + is_continent  , data = df_subs)
 summary(lm_model)
+
+
 
 "
 ggplot(df_subs, aes(x=contributors, y=gini_score_dist, group = group, color = subreddit)) +
@@ -403,7 +404,7 @@ ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=contributors, y=turnover)) +
   xlab("Unique contributor/Week (log2)")+
   scale_color_manual(name = "Group", values=category_colors, labels=category_labels)
 
-ggsave(path = "comments_files/figure-png/", filename = "turnover_distribution.svg", device='svg')
+ggsave(path = "comments_files/figure-svg/", filename = "turnover_distribution.svg", device='svg')
 ggsave(path = "comments_files/figure-png/", filename = "turnover_distribution.png", device='png')
 
 lm_model <- lm(turnover ~ log_contributors + interval, data = df_subs)
