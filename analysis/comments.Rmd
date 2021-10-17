@@ -27,7 +27,8 @@ p_load(RColorBrewer, # color pallets
        dplyr,
        psych,
        svglite,
-       irr) 
+       irr,
+       moments) 
 ```
 
 ### Import data set
@@ -85,9 +86,19 @@ str(sub_meta)
 
 ### Preprocess: Treat missing values, if applicable
 ```{r preprocess}
-df$author[df$awarders == "[]"] <- NULL
 df$author[df$author == ""] <- NA
 df$author[df$author == "[deleted]"] <- NA
+
+sum(is.na(df$author))
+( sum(is.na(df$author))) / nrow(df)
+
+sum(duplicated(df$id))
+(sum(duplicated(df$id))) / nrow(df)
+
+sum(df$stickied == TRUE)
+(sum(df$stickied == TRUE)) / nrow(df)
+
+
 df <-df[!duplicated(df$id), ]
 nrow(df)
 
@@ -105,6 +116,7 @@ nrow(subset(df, stickied == TRUE))
 
 #Stickied comments are shown at the very top of a post. They are usually reminders by moderators to follow the rules of a subreddit and should not be analysed seen as regular comments.
 df <- df[!(df$stickied == TRUE),]
+
 
 str(df)
 
@@ -166,8 +178,9 @@ nrow(df_with_acc)
 #df_with_acc <- df_with_acc[df_with_acc$score > 10,]
 
  
-
+id <- 0
 df_subs <- data.frame(
+                 id=factor(),
                  interval=character(),
                  gini_comment_dist=double(),
                  gini_score_dist=double(),
@@ -251,6 +264,7 @@ for (subreddit in levels(df_with_acc$subreddit)){
 
     #df for sub
     df_sub <- data.frame(
+                   id=id,
                    interval=interval,
                    gini_comment_dist=gini_comment_dist,
                    gini_score_dist=gini_score_dist,
@@ -260,6 +274,7 @@ for (subreddit in levels(df_with_acc$subreddit)){
                    turnover = turnover,
                    stringsAsFactors=TRUE
                    )
+    id <- id + 1
     #for turnover calc
     df_author_prev_interval <- df_author$author
     #add calculation to df for subs
@@ -298,8 +313,28 @@ df_subs$log_contributors <- log(df_subs$contributors)
 
 ### Calculated Subreddit Data Set Stats
 ```{r stats_subreddits}
-mean(df_subs$contributors_original)
-sd(df_subs$contributors_original) 
+mean(df_subs$contributors)
+sd(df_subs$contributors) 
+
+print("Min/Max")
+min(df_subs$contributors)
+max(df_subs$contributors)
+
+print("is_city")    
+mean(df_subs$contributors[df_subs$is_city])
+sd(df_subs$contributors[df_subs$is_city]) 
+
+print("is_country")    
+mean(df_subs$contributors[df_subs$is_country])
+sd(df_subs$contributors[df_subs$is_country]) 
+
+print("is_continent")
+mean(df_subs$contributors[df_subs$is_continent])
+sd(df_subs$contributors[df_subs$is_continent]) 
+
+print("skewness")
+skewness(df_subs$contributors)
+kurtosis(df_subs$contributors)
 ```
 
 
@@ -308,6 +343,23 @@ sd(df_subs$contributors_original)
 
 
 df_subs$interval <-as.numeric(as.character(df_subs$interval))
+
+category_colors <- c("1" = "#000000", "2.1" = "#000099", "2.2" ="#1144bb", "2.3" = "#5577EE", "3" = "#e6ac00")
+category_labels <- c("1" = "Continent", "2.1" = "Country English", "2.2" ="Country Bilingual", "2.3" = "Country Native", "3" = "City")
+
+ggplot(df_subs, aes(x = reorder(id, contributors), y = contributors, color = group)) +
+  geom_bar(stat = "identity") +
+  scale_color_manual(name = "Group", values=category_colors, labels=category_labels) +
+  ggtitle("UC/Interval Distribution")+
+  ylab("UC/Interval") +
+  xlab("Datapoints ordered by UC")+
+  theme(axis.text.x=element_blank(), #remove x axis labels
+        axis.ticks.x=element_blank(), #remove x axis ticks
+        )
+
+
+ggsave(path = "comments_files/figure-svg/", filename = "datapoint_ordered_uc.svg", device='svg')
+ggsave(path = "comments_files/figure-png/", filename = "datapoint_ordered_uc.png", device='png')
 
 ggplot(df_subs, aes(x=interval, y=gini_comment_dist, group = group, color = subreddit)) +
   geom_point() 
@@ -334,13 +386,13 @@ summary(df_subs)
 #https://www.youtube.com/watch?v=GctGncQrJew
 #describeBy(df_subs$gini_comment_dist, df_subs$subreddit)
 df_subs_cities <- df_subs[df_subs$is_city==TRUE,]
-summary(aov(df_subs$gini_comment_dist ~ df_subs$subreddit))
+#summary(aov(df_subs$gini_comment_dist ~ df_subs$subreddit))
 pairwise.t.test(df_subs_cities$gini_comment_dist, df_subs_cities$subreddit)
 
 
 #describeBy(df_subs_cities$turnover, df_subs_cities$subreddit)
-summary(aov(df_subs$turnover ~ df_subs$subreddit))
-pairwise.t.test(df_subs_cities$turnover, df_subs_cities$subreddit)
+#summary(aov(df_subs$turnover ~ df_subs$subreddit))
+#pairwise.t.test(df_subs_cities$turnover, df_subs_cities$subreddit)
 
 ```
 
@@ -365,7 +417,7 @@ ggplot(df_subs, aes(x=contributors, y=gini_comment_dist, group = NULL, color = N
   ylim(0,1) +
   ggtitle("UCs predicting concentration of participation")+
   ylab("Concentration of participation (Gini)") +
-  xlab("Unique contributor/Week (log2)")+
+  xlab("Unique contributors/Interval (log2)")+
   scale_color_manual(name = "Group", values=category_colors, labels=category_labels)
 
 
@@ -401,7 +453,7 @@ ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=contributors, y=turnover)) +
   ylim(0,1) +
   ggtitle("UCs predicting turnover")+
   ylab("Turnover") +
-  xlab("Unique contributor/Week (log2)")+
+  xlab("Unique contributors/Interval (log2)")+
   scale_color_manual(name = "Group", values=category_colors, labels=category_labels)
 
 ggsave(path = "comments_files/figure-svg/", filename = "turnover_distribution.svg", device='svg')

@@ -13,11 +13,13 @@ dump/
 #logs
 *.txt
 
-#Folder
-analysis/
+
 __pycache__/
 
-#overwrite ignore
+#analysis
+analysis/
 !analysis/*.rmd
 !analysis/*.html
+!analysis/data
+analysis/data/*
 !analysis/data/subreddits.csv
