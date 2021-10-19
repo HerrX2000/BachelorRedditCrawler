@@ -140,7 +140,7 @@ to_interval <- function(anchor.date, future.date, interval.days){
 
 #Apply interval to each df$data
 df$interval <- to_interval(as.Date('2020-01-01'), 
-                          df$date, 14 )
+                          df$date, 14 ) #Was also tested with 7, 14 and 30 day intervals. Decided on 14 days to get more datapoints but stay comparable to Panek et al.
 
 ###Alternative methode. Not used.
 ###df$month <- format(df$date, "%m")
@@ -387,6 +387,7 @@ summary(df_subs)
 #describeBy(df_subs$gini_comment_dist, df_subs$subreddit)
 df_subs_cities <- df_subs[df_subs$is_city==TRUE,]
 summary(aov(df_subs$gini_comment_dist ~ df_subs$subreddit))
+summary(aov(df_subs$interval ~ df_subs$subreddit))
 pairwise.t.test(df_subs_cities$gini_comment_dist, df_subs_cities$subreddit)
 
 
@@ -397,12 +398,16 @@ pairwise.t.test(df_subs_cities$gini_comment_dist, df_subs_cities$subreddit)
 ```
 
 ```{r}
-#icc(df_subs,type = "agreement", unit = "single")
+  ylab("Concentration of participation Gini)") +
+  xlab("Unique contributors/Interval log2)")
+
+ggsave(path = "comments_files/figure-svg/", filename = "gini_distribution_cities.svg", device='svg')
+ggsave(path = "comments_files/figure-png/", filename = "gini_distribution_cities.png", device='png')
 ```
 
 
 ### Models
-```{r models, eval = TRUE}
+```{r models_participation, eval = TRUE}
 #For LMs checking for group effect is_english_county is the reference.
 
 mean(df_subs$gini_comment_dist)
@@ -424,25 +429,70 @@ ggplot(df_subs, aes(x=contributors, y=gini_comment_dist, group = NULL, color = N
 ggsave(path = "comments_files/figure-svg/", filename = "gini_distribution.svg", device='svg')
 ggsave(path = "comments_files/figure-png/", filename = "gini_distribution.png", device='png')
 
-ggplot(df_subs[df_subs$subreddit=="berlin",], aes(x=interval, y=gini_comment_dist, group = NULL, color = NULL)) +
-  geom_point(aes(color=factor(interval))) +
+
+#Graph with only with country english
+ggplot(df_subs[df_subs$is_country_english,], aes(x=contributors, y=gini_comment_dist, group = NULL, color = NULL)) +
+  geom_point(aes(color=factor(subreddit))) +
   geom_smooth(method='lm', formula= y~x) +
   scale_x_continuous(trans='log2') +
   ylim(0,1) +
-  ggtitle("UCs predicting concentration of participation")+
+  ggtitle("Country English")+
   ylab("Concentration of participation (Gini)") +
   xlab("Unique contributors/Interval (log2)")
 
-ggsave(path = "comments_files/figure-png/", filename = "1.png", device='png')
+#Graph with only with country bi
+ggplot(df_subs[df_subs$is_country_bi,], aes(x=contributors, y=gini_comment_dist, group = NULL, color = NULL)) +
+  geom_point(aes(color=factor(subreddit))) +
+  geom_smooth(method='lm', formula= y~x) +
+  scale_x_continuous(trans='log2') +
+  ylim(0,1) +
+  ggtitle("Country Bi")+
+  ylab("Concentration of participation (Gini)") +
+  xlab("Unique contributors/Interval (log2)")
+
+#Graph with only with country native
+ggplot(df_subs[df_subs$is_country_native,], aes(x=contributors, y=gini_comment_dist, group = NULL, color = NULL)) +
+  geom_point(aes(color=factor(subreddit))) +
+  geom_smooth(method='lm', formula= y~x) +
+  scale_x_continuous(trans='log2') +
+  ylim(0,1) +
+  ggtitle("Country Native")+
+  ylab("Concentration of participation (Gini)") +
+  xlab("Unique contributors/Interval (log2)")
+
+df_country_native <- df_subs[df_subs$subreddit != "es" & df_subs$is_country_native,]
+sd(df_country_native$gini_comment_dist)
+
+df_es <- df_subs[df_subs$subreddit == "es",]
+sd(df_es$gini_comment_dist)
+
+
+ggsave(path = "comments_files/figure-svg/", filename = "gini_distribution.svg", device='svg')
+ggsave(path = "comments_files/figure-png/", filename = "gini_distribution.png", device='png')
 
 lm_model <- lm(gini_comment_dist ~ log_contributors + interval, data = df_subs)
+summary(lm_model)
+lm_model <- lm(gini_comment_dist ~ log_contributors + interval, data = df_subs[df_subs$is_city,])
+summary(lm_model)
+
+lm_model <- lm(gini_comment_dist ~ log_contributors + interval, data = df_subs[df_subs$is_country,])
+summary(lm_model)
+
+lm_model <- lm(gini_comment_dist ~ log_contributors + interval, data = df_subs[df_subs$is_continent,])
 summary(lm_model)
 
 lm_model <- lm(gini_comment_dist ~ log_contributors + interval + is_city + is_country_native + is_country_bi + is_continent  , data = df_subs)
 summary(lm_model)
 
+lm_model <- lm(gini_comment_dist ~ log_contributors + is_city + is_country_native + is_country_bi + is_continent + is_city * log_contributors + is_country_native * log_contributors + is_country_bi * log_contributors + is_continent * log_contributors  , data = df_subs)
+summary(lm_model)
 
+```
+```{r checking_categorisation, eval = TRUE}
 
+```
+
+```{r models_turnover, eval = TRUE}
 "
 ggplot(df_subs, aes(x=contributors, y=gini_score_dist, group = group, color = subreddit)) +
   geom_point() +
@@ -473,14 +523,24 @@ ggsave(path = "comments_files/figure-png/", filename = "turnover_distribution.pn
 lm_model <- lm(turnover ~ log_contributors + interval, data = df_subs)
 summary(lm_model)
 
+lm_model <- lm(turnover ~ log_contributors + interval, data = df_subs[df_subs$is_city,])
+summary(lm_model)
+
+lm_model <- lm(turnover ~ log_contributors + interval, data = df_subs[df_subs$is_country,])
+summary(lm_model)
+
+lm_model <- lm(turnover ~ log_contributors + interval, data = df_subs[df_subs$is_continent,])
+summary(lm_model)
+
 
 lm_model <- lm(turnover ~ log_contributors + interval + is_city + is_country_native + is_country_bi + is_continent, data = df_subs)
 summary(lm_model)
 
 lm_model <- lm(turnover ~ is_city + is_country_native + is_country_bi + is_continent, data = df_subs)
 summary(lm_model)
+```
 
+```{r models_others, eval = TRUE}
 lm_model <- lm(turnover ~ gini_comment_dist, data = df_subs)
 summary(lm_model)
-
 ```
