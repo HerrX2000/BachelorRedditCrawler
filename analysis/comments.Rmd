@@ -1,5 +1,5 @@
 ---
-title: "comments"
+title: "Comments - Study I"
 author: "Frederik Mann"
 date: "15 7 2021"
 output:
@@ -43,6 +43,7 @@ for (month in 2:12){
 ### Inspect Data
 ```{r inspect}
 str(df)
+#correct datatypes
 df$is_submitter <- as.logical(df$is_submitter)
 df$send_replies <- as.logical(df$send_replies)
 df$subreddit <- as.factor(df$subreddit)
@@ -51,7 +52,6 @@ df$stickied <- as.logical(df$stickied)
 df$locked <- as.logical(df$locked)
 df$subreddit <- as.factor(df$subreddit)
 df$date <- as.Date(df$datetime)
-df$steward_reports <- as.factor(df$steward_reports)
 
 #removing unused columns
 df$all_awardings <- NULL #JSON Object
@@ -64,8 +64,9 @@ df$collapsed_because_crowd_control <- NULL #If a comment receives too much downv
 df$subreddit_id <- NULL #Subreddit name is already unqiue
 df$gildings <- NULL #Before Awards existed or somethine? not used for analysis
 df$is_submitter <- NULL #Purpose and meaning unknown
+df$steward_reports <- NULL
 
-#Data is accurate but should be part of the subs not the idividual comments
+#Data is accurate but should be part of the subs not the individual comments
 #df$is_city <- NULL
 #df$is_country <- NULL 
 df$is_country_native <- NULL
@@ -86,43 +87,31 @@ str(sub_meta)
 
 ### Preprocess: Treat missing values, if applicable
 ```{r preprocess}
+#Authors missing value was either "" or "[deleted]". Reason unknown. Both ommited later.
 df$author[df$author == ""] <- NA
 df$author[df$author == "[deleted]"] <- NA
 
 sum(is.na(df$author))
-( sum(is.na(df$author))) / nrow(df)
+(sum(is.na(df$author))) / nrow(df)
 
+
+#Check for number and % of duplicate id. Turned out to be 0.
 sum(duplicated(df$id))
 (sum(duplicated(df$id))) / nrow(df)
+df <-df[!duplicated(df$id), ]
 
+#Check for number and % of stickied posts. Sadly not returned correctly by pushshift.
+#Stickied comments are shown at the very top of a post. They are usually reminders by moderators to follow the rules of a subreddit and should not be analysed seen as regular comments.
 sum(df$stickied == TRUE)
 (sum(df$stickied == TRUE)) / nrow(df)
-
-
-df <-df[!duplicated(df$id), ]
-nrow(df)
-
-# Track down variables with missing values
-sum(is.na(df))
-colSums(is.na(df))
-
-# Check the percentage of missing values in the data set
-(nrow(df) - nrow(na.omit(df))) / nrow(df)
-
-
-
-
-nrow(subset(df, stickied == TRUE))
-
-#Stickied comments are shown at the very top of a post. They are usually reminders by moderators to follow the rules of a subreddit and should not be analysed seen as regular comments.
 df <- df[!(df$stickied == TRUE),]
 
 
 str(df)
-
 ```
 ### Data Set Stats
 ```{r stats_dataset}
+#For appendix and summary of dataset
 #Contributions pro Subreddit
 df_sub_con <- df %>% count(subreddit)
 df_sub_con
@@ -133,44 +122,52 @@ df_sub_uc <- df %>%
   summarise(unique_contributors = n_distinct(author))
 df_sub_uc
 
+#Mean and standard deviation
 mean(df_sub_uc$unique_contributors)
 sd(df_sub_uc$unique_contributors) 
 ```
 
 ### Calculations
 ```{r calculations_1}
+# to_interval
+# @param anchor.date   Anchor date used to determine what interval the date belongs to
+# @param future.date   The date whoms interval should be determined
+# @param interval.days The interval size
+
 to_interval <- function(anchor.date, future.date, interval.days){
   round(as.integer(future.date - anchor.date) / interval.days, 0)+1 #interval starts at 1
 }
 
+#Apply interval to each df$data
 df$interval <- to_interval(as.Date('2020-01-01'), 
                           df$date, 14 )
 
-#$interval <- factor(df$interval)
+###Alternative methode. Not used.
+###df$month <- format(df$date, "%m")
+###df$month <- factor(df$month) #another way of making intervals, but not used in analysis.
+###data.frame(table(df$month))
 
-#df$month <- format(df$date, "%m")
-#df$month <- factor(df$month) #another way of making intervals, but not used in analysis.
-
-data.frame(table(df$month))
+#Check if interval works correctly
+#Interval 1: New years effect
+#Interval 7: Start of covid pandemic
+#Interval 23: US Election
+#Interval 27: Incomplete + new years/christmas effect. Ommited later.
 
 dfwi <- data.frame(table(df$interval))
 dfwi
 
 
 
-
-#count(df, vars =c("subreddit", "subreddit"))
-#df = df.groupby('subreddit')['subreddit'].nunique()
-
-
+#?
 tbl <- with(df, table(subreddit, interval))
 ggplot(as.data.frame(tbl), aes(factor(interval), Freq, fill = subreddit)) +     
   geom_col(position = 'dodge')
+#?
 
-
-
+#Overall
 Gini(dfwi$Freq)
 
+#DF only with authors that are known and not deleted
 nrow(df)
 df_with_acc <- df[!is.na(df$author),]
 nrow(df_with_acc)
@@ -178,7 +175,10 @@ nrow(df_with_acc)
 #df_with_acc <- df_with_acc[df_with_acc$score > 10,]
 
  
+#artifical id for tables
 id <- 0
+
+#df with calculated values
 df_subs <- data.frame(
                  id=factor(),
                  interval=character(),
@@ -191,11 +191,13 @@ df_subs <- data.frame(
                  stringsAsFactors=TRUE
                  )
 
+#calculating for each subreddit each interval
 for (subreddit in levels(df_with_acc$subreddit)){
+  #DF for subreddit x
   df_subreddit <- df_with_acc[df_with_acc$subreddit == subreddit, ]
   df_author_prev_interval <- NULL
   
-  #53 interval omit because it would just be a single day if 365 days are divided by 7
+  #Last interval omit because it was not a full interval
   for (interval in head( unique(df_subreddit$interval), -1)){
     #Get df for the interval
     df_7day <- df_subreddit[df_subreddit$interval == interval, ]
@@ -205,20 +207,20 @@ for (subreddit in levels(df_with_acc$subreddit)){
       warning("Empty interval")
       next
     }
+    
     #Posts per Author
     df_author_comments <- (df_7day %>% count(author))
     
     #Sum of score per author
-    
     df_author_score <- aggregate(df_7day$score, by=list(author=df_7day$author), FUN=sum)
     
-  
-    
+    #Both merged
     df_author <- merge(df_author_comments, df_author_score, by="author")
-    df_author$score_per_comment <- df_author$x / df_author$n #Average comment score
+    
+    df_author$score_per_comment <- df_author$x / df_author$n #Average comment score. NOT USED.
     #df_author$perc_of_total_comments <- df_author$freq / length(df_author)
     "
-     To calculate the coefficient, we divided 
+    To calculate the coefficient, we divided 
     the average difference in the number of comments posted by 
     each possible pair of users who contributed to a given sub-
     reddit during a given month by the number of UCs for that 
@@ -230,12 +232,9 @@ for (subreddit in levels(df_with_acc$subreddit)){
     "
     gini_comment_dist <- Gini(df_author$n)
     
-    "
-    Gini for score (not used in paper)
-    "
-    gini_score_dist <- Gini(df_author$score_per_comment)
+
+    gini_score_dist <- Gini(df_author$score_per_comment) #NOT USED.
     
-    #todo: test if turnover is calculated correctly
     "
     Turnover  was  determined  by  comparing  a  list  of  
     UCs who contributed to discourse in a given subreddit dur-
@@ -253,13 +252,14 @@ for (subreddit in levels(df_with_acc$subreddit)){
     also contributed in the second month, turnover was equal to 
     1 (M = .65;  SD = .13).
     "
+    
     turnover <- double()
     if(is.null(df_author_prev_interval)){
-      turnover <- NA
+      turnover <- NA #Firsts interval turnover can not be calculated
     }
     else{
-      df_author_intersect <- intersect(df_author$author, df_author_prev_interval)
-      turnover <- 1 - (length(df_author_intersect) / length(df_author$author))
+      df_author_intersect <- intersect(df_author$author, df_author_prev_interval) #Intersect with prev interval
+      turnover <- 1 - (length(df_author_intersect) / length(df_author$author)) #Percantage of turnover.
     }
 
     #df for sub
@@ -339,7 +339,7 @@ kurtosis(df_subs$contributors)
 
 
 ### Data Visualisation
-```{r visualisation, eval = FALSE}
+```{r visualisation, eval = TRUE}
 
 
 df_subs$interval <-as.numeric(as.character(df_subs$interval))
@@ -386,7 +386,7 @@ summary(df_subs)
 #https://www.youtube.com/watch?v=GctGncQrJew
 #describeBy(df_subs$gini_comment_dist, df_subs$subreddit)
 df_subs_cities <- df_subs[df_subs$is_city==TRUE,]
-#summary(aov(df_subs$gini_comment_dist ~ df_subs$subreddit))
+summary(aov(df_subs$gini_comment_dist ~ df_subs$subreddit))
 pairwise.t.test(df_subs_cities$gini_comment_dist, df_subs_cities$subreddit)
 
 
@@ -423,6 +423,17 @@ ggplot(df_subs, aes(x=contributors, y=gini_comment_dist, group = NULL, color = N
 
 ggsave(path = "comments_files/figure-svg/", filename = "gini_distribution.svg", device='svg')
 ggsave(path = "comments_files/figure-png/", filename = "gini_distribution.png", device='png')
+
+ggplot(df_subs[df_subs$subreddit=="berlin",], aes(x=interval, y=gini_comment_dist, group = NULL, color = NULL)) +
+  geom_point(aes(color=factor(interval))) +
+  geom_smooth(method='lm', formula= y~x) +
+  scale_x_continuous(trans='log2') +
+  ylim(0,1) +
+  ggtitle("UCs predicting concentration of participation")+
+  ylab("Concentration of participation (Gini)") +
+  xlab("Unique contributors/Interval (log2)")
+
+ggsave(path = "comments_files/figure-png/", filename = "1.png", device='png')
 
 lm_model <- lm(gini_comment_dist ~ log_contributors + interval, data = df_subs)
 summary(lm_model)
