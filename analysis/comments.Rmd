@@ -349,7 +349,7 @@ category_labels <- c("1" = "Continent", "2.1" = "Country English", "2.2" ="Count
 
 ggplot(df_subs, aes(x = reorder(id, contributors), y = contributors, color = group)) +
   geom_bar(stat = "identity") +
-  scale_color_manual(name = "Group", values=category_colors, labels=category_labels) +
+  scale_color_manual(name = "Category", values=category_colors, labels=category_labels) +
   ggtitle("UC/Interval Distribution")+
   ylab("UC/Interval") +
   xlab("Datapoints ordered by UC")+
@@ -397,14 +397,6 @@ pairwise.t.test(df_subs_cities$gini_comment_dist, df_subs_cities$subreddit)
 
 ```
 
-```{r}
-  ylab("Concentration of participation Gini)") +
-  xlab("Unique contributors/Interval log2)")
-
-ggsave(path = "comments_files/figure-svg/", filename = "gini_distribution_cities.svg", device='svg')
-ggsave(path = "comments_files/figure-png/", filename = "gini_distribution_cities.png", device='png')
-```
-
 
 ### Models
 ```{r models_participation, eval = TRUE}
@@ -423,7 +415,7 @@ ggplot(df_subs, aes(x=contributors, y=gini_comment_dist, group = NULL, color = N
   ggtitle("UCs predicting concentration of participation")+
   ylab("Concentration of participation (Gini)") +
   xlab("Unique contributors/Interval (log2)")+
-  scale_color_manual(name = "Group", values=category_colors, labels=category_labels)
+  scale_color_manual(name = "Category", values=category_colors, labels=category_labels)
 
 
 ggsave(path = "comments_files/figure-svg/", filename = "gini_distribution.svg", device='svg')
@@ -460,11 +452,15 @@ ggplot(df_subs[df_subs$is_country_native,], aes(x=contributors, y=gini_comment_d
   ylab("Concentration of participation (Gini)") +
   xlab("Unique contributors/Interval (log2)")
 
-df_country_native <- df_subs[df_subs$subreddit != "es" & df_subs$is_country_native,]
-sd(df_country_native$gini_comment_dist)
-
-df_es <- df_subs[df_subs$subreddit == "es",]
-sd(df_es$gini_comment_dist)
+#Graph with only with cities native
+ggplot(df_subs[df_subs$is_city,], aes(x=contributors, y=gini_comment_dist, group = NULL, color = NULL)) +
+  geom_point(aes(color=factor(subreddit))) +
+  geom_smooth(method='lm', formula= y~x) +
+  scale_x_continuous(trans='log2') +
+  ylim(0,1) +
+  ggtitle("City")+
+  ylab("Concentration of participation (Gini)") +
+  xlab("Unique contributors/Interval (log2)")
 
 
 ggsave(path = "comments_files/figure-svg/", filename = "gini_distribution.svg", device='svg')
@@ -488,7 +484,35 @@ lm_model <- lm(gini_comment_dist ~ log_contributors + is_city + is_country_nativ
 summary(lm_model)
 
 ```
-```{r checking_categorisation, eval = TRUE}
+```{r models_participation_investigation}
+print("SD es vs contry_native")
+sd(df_subs$gini_comment_dist[df_subs$subreddit == "es"])
+
+df_agg_sd <- aggregate(gini_comment_dist ~ subreddit, data=df_subs[df_subs$is_country_native,], sd) #Aggregate SD
+mean(df_agg_sd$gini_comment_dist) #Average SD within country native
+
+
+print("SD rome vs is_city")
+sd(df_subs$gini_comment_dist[df_subs$subreddit == "rome"]) #SD within Rome
+
+df_agg_sd <- aggregate(gini_comment_dist ~ subreddit, data=df_subs[df_subs$is_city,], sd) #Aggregate SD
+mean(df_agg_sd$gini_comment_dist) #Average SD within city
+
+
+print("SD berlin&london vs is_city")
+df_agg_sd <- aggregate(gini_comment_dist ~ subreddit, data=df_subs[df_subs$subreddit == "berlin" | df_subs$subreddit == "london",], sd) #Aggregate SD
+mean(df_agg_sd$gini_comment_dist) #Average SD r/berlin and r/london
+
+
+df_agg_sd <- aggregate(gini_comment_dist ~ subreddit, data=df_subs[df_subs$subreddit != "berlin" & df_subs$subreddit != "london" & df_subs$is_city,], sd) #Aggregate SD
+mean(df_agg_sd$gini_comment_dist) #Average SD without r/berlin and r/london within city
+```
+
+```{r standardize, eval = TRUE}
+options(digits=15)
+standardize <- function(var){
+  (var - mean(var)) / sd(var) #Not used bc data is not normally distributed
+}
 
 ```
 
@@ -515,7 +539,7 @@ ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=contributors, y=turnover)) +
   ggtitle("UCs predicting turnover")+
   ylab("Turnover") +
   xlab("Unique contributors/Interval (log2)")+
-  scale_color_manual(name = "Group", values=category_colors, labels=category_labels)
+  scale_color_manual(name = "Category", values=category_colors, labels=category_labels)
 
 ggsave(path = "comments_files/figure-svg/", filename = "turnover_distribution.svg", device='svg')
 ggsave(path = "comments_files/figure-png/", filename = "turnover_distribution.png", device='png')
@@ -541,6 +565,6 @@ summary(lm_model)
 ```
 
 ```{r models_others, eval = TRUE}
-lm_model <- lm(turnover ~ gini_comment_dist, data = df_subs)
+lm_model <- lm(gini_comment_dist ~ turnover, data = df_subs)
 summary(lm_model)
 ```
