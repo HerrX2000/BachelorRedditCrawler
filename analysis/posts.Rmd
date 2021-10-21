@@ -8,6 +8,7 @@ output:
 
 ```{r setup, echo=FALSE, cache=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+Sys.setenv(LANG = "en")
 ```
 
 ## Posts
@@ -29,7 +30,7 @@ p_load(RColorBrewer, # color pallets
 df2_berlin <- read.csv("data/posts/posts_berlin_2020.csv")
 df2_germany <- read.csv("data/posts/posts_de_2020.csv")
 df2_europe <- read.csv("data/posts/posts_europe_2020.csv")
-df2 <- rbind(df2_berlin, df2_germany, df2_europe)
+df2 <- rbind(df2_berlin, df2_germany, df2_europe) #df2 so it can be run in the same environment
 ```
 
 ### Inspect
@@ -41,17 +42,33 @@ df2$is_original_content <- as.logical(df2$is_original_content)
 df2$stickied <- as.logical(df2$stickied)
 df2$subreddit <- as.factor(df2$subreddit)
 
+#removing unused columns
+df2$permalink <- NULL
+df2$author_fullname <- NULL
+df2$title <- NULL
+df2$url <- NULL
+df2$is_original_content <- NULL
+df2$author_flair_text <- NULL
+df2$is_video <- NULL
+df2$selftext <- NULL
+df2$link_flair_richtext <- NULL
+df2$domain <- NULL
+df2$over_18 <- NULL
+df2$total_awards_received <- NULL
+df2$num_comments <- NULL
+df2$epoch <- NULL
+
 str(df2)
 ```
 
 ### Preprocess: Treat missing values, if applicable
 ```{r preprocess}
-df2$author_fullname[df2$author_fullname == "NULL"] <- NA
 df2$author[df2$author == ""] <- NA
-df2$selftext[df2$selftext == "[deleted]"] <- NA
 nrow(df2)
-df2 <-df2[!duplicated(df2$id), ]
-nrow(df2)
+
+sum(duplicated(df2$id))
+(sum(duplicated(df2$id))) / nrow(df)
+df <-df[!duplicated(df2$id), ]
 
 # Track down variables with missing values
 sum(is.na(df2))
@@ -77,8 +94,8 @@ df2$interval <- factor(df2$interval)
 #df2$month <- format(df2$date, "%m")
 #df2$month <- factor(df2$month)
 
-#sum(df$stickied == TRUE)
-#(sum(df$stickied == TRUE)) / nrow(df)
+#sum(df2$stickied == TRUE)
+#(sum(df2$stickied == TRUE)) / nrow(df)
 
 df2 <- df2[!(df2$stickied == TRUE),]
 ```
@@ -211,8 +228,8 @@ subreddit_colors <- c("berlin" = "#f8766d", "de" = "#00ba38", "europe" ="#619cff
 ggplot(df2_subs, aes(x = reorder(id, contributors), y = contributors, fill = subreddit)) +
   geom_bar(stat = "identity", binwidth=0, width=1) +
   scale_fill_manual(name = "Subreddit", values=subreddit_colors) +
-  ggtitle("UC/Interval Distribution")+
-  ylab("UC/Interval") +
+  ggtitle("UC Distribution by Groups")+
+  ylab("UC") +
   xlab("Datapoints ordered by UC")+
   theme(axis.text.x=element_blank(), #remove x axis labels
         axis.ticks.x=element_blank(), #remove x axis ticks
@@ -264,6 +281,10 @@ sd(df2_subs$contributors[df2_subs$is_europe])
 print("skewness")
 skewness(df2_subs$contributors)
 kurtosis(df2_subs$contributors)
+
+max(df2_subs$interval)
+max(df2_subs$log_contributors)
+min(df2_subs$log_contributors)
 ```
 
 
@@ -320,7 +341,7 @@ ggplot(df2_subs, aes(x=contributors, y=gini_post_dist)) +
   geom_smooth(method='lm', formula= y~x) +
   ylim(0,1) +
   scale_x_continuous(trans='log2')+
-  labs(title = "UC predicting distribution of participation", x = "Unique contributor/Week (log2)", y = "Distribution of participation", color = "Subreddits")
+  labs(title = "UC predicting distribution of participation", x = "Unique contributor(log2)", y = "Distribution of participation", color = "Subreddits")
 
 ggsave(path = "posts_files/figure-svg/", filename = "gini_distribution_participation.svg", device='svg')
 ggsave(path = "posts_files/figure-png/", filename = "gini_distribution_participation.png", device='png')
@@ -390,4 +411,10 @@ summary(lm_model)
 df2_subs_berlin <- df2_subs[df2_subs$is_berlin == TRUE,]
 mean(df2_subs_berlin$gini_score_dist)
 mean(df2_subs_berlin$contributors)
+
+for(sub in c("berlin", "de", "europe")){
+  print(sub)
+  print(length(unique(df2$author[df2$subreddit == sub])))
+  print(length(df2$author[df2$subreddit == sub]))
+}
 ```

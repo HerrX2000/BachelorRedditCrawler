@@ -12,8 +12,6 @@ Sys.setenv(LANG = "en")
 ```
 
 ## Comments
-
-
 ```{r libs}
 options(repos='http://cran.rstudio.com/')
 library(pacman)
@@ -335,6 +333,8 @@ sd(df_subs$contributors[df_subs$is_continent])
 print("skewness")
 skewness(df_subs$contributors)
 kurtosis(df_subs$contributors)
+
+
 ```
 
 
@@ -350,8 +350,8 @@ category_labels <- c("1" = "Continent", "2.1" = "Country English", "2.2" ="Count
 ggplot(df_subs, aes(x = reorder(id, contributors), y = contributors, color = group)) +
   geom_bar(stat = "identity") +
   scale_color_manual(name = "Category", values=category_colors, labels=category_labels) +
-  ggtitle("UC/Interval Distribution")+
-  ylab("UC/Interval") +
+  ggtitle("UC Distribution by Category")+
+  ylab("UC") +
   xlab("Datapoints ordered by UC")+
   theme(axis.text.x=element_blank(), #remove x axis labels
         axis.ticks.x=element_blank(), #remove x axis ticks
