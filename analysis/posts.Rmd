@@ -129,6 +129,7 @@ df2_subs <- data.frame(
                  interval=character(),
                  gini_post_dist=double(),
                  gini_score_dist=double(),
+                 gini_score_dist_adjusted = double(),
                  subreddit=factor(levels = levels(df2_with_acc$subreddit)),
                  contributors = integer(),
                  total_posts = integer(),
@@ -151,38 +152,23 @@ for (subreddit in levels(df2_with_acc$subreddit)){
     df2_author <- merge(df2_author_posts, df2_author_score, by="author")
     df2_author$score_per_post <- df2_author$x / df2_author$freq
     df2_author$perc_of_total_post <- df2_author$freq / length(df2_author)
-    "
-     To calculate the coefficient, we divided 
-    the average difference in the number of comments posted by 
-    each possible pair of users who contributed to a given sub-
-    reddit during a given month by the number of UCs for that 
-    month in that subreddit.
-    (see ref paper)
-    where xi = number of comments by UC in a given month in a 
-    given subreddit and n = number of UCs in a given month in a 
-    given subreddit.
-    "
+    
+    #Aggregation without locked posts to better invastigate Concentration of Visibility
+    df2_author_posts_wo_locked <- count(df2_7day[df2_subreddit$is_locked == FALSE,], vars = "author")
+    df2_author_score_wo_locked <- aggregate(df2_7day$score[df2_subreddit$is_locked == FALSE], by=list(author=df2_7day$author), FUN=sum)
+  
+    
+    df2_author_wo_locked <- merge(df2_author_posts_wo_locked, df2_author_score_wo_locked, by="author")
+    df2_author_wo_locked$score_per_post <- df2_author_wo_locked$x / df2_author_wo_locked$freq
+    df2_author_wo_locked$perc_of_total_post <- df2_author$freq / length(df2_author)
+
+    
     gini_score_dist <- Gini(df2_author$score_per_post)
+    gini_score_dist_adjusted <- Gini(df2_author_wo_locked$score_per_post)
+    
     gini_post_dist <- Gini(df2_author$freq)
     
-    #todo: test if turnover is calculated correctly
-    "
-    Turnover  was  determined  by  comparing  a  list  of  
-    UCs who contributed to discourse in a given subreddit dur-
-    ing  a  given  month  to  a  list  of  UCs  who  contributed  to  dis-
-    course in that same subreddit during the subsequent month. 
-    Our  turnover  metric  is  an  expression  of  the  percentage  of  
-    UCs  that  are  not  retained  from  one  month  to  the  next  in  a  
-    given subreddit.
-    (see ref paper)
-    where  UCi = UCs  in  month  i  and  UCi+1  =  UCs  in  the  month  
-    after month i.
-    If all UCs who contributed to discourse in the first month 
-    also contributed in the second month, turnover was equal to 
-    0. If no UCs who contributed to discourse in the first month 
-    also contributed in the second month, turnover was equal to 
-    1 (M = .65;  SD = .13).
-    "
+    
     turnover <- double()
     if(is.null(df2_author_prev_interval)){
       turnover <- NA
@@ -197,6 +183,7 @@ for (subreddit in levels(df2_with_acc$subreddit)){
                    interval=interval,
                    gini_post_dist=gini_post_dist,
                    gini_score_dist=gini_score_dist,
+                   gini_score_dist_adjusted = gini_score_dist_adjusted,
                    subreddit=subreddit,
                    contributors = length(unique(df2_7day$author)),
                    total_posts = length(df2_7day$id),
@@ -257,10 +244,16 @@ ggplot(df2_subs, aes(x=interval, y=total_posts, group = subreddit, color = subre
 ggplot(df2_subs[!is.na(df2_subs$turnover),], aes(x=interval, y=turnover, group = subreddit, color = subreddit)) +
   geom_point()
 ```
+
 ### Calculated Subreddit Data Set Stats
 ```{r stats_subreddits}
 mean(df2_subs$contributors)
-sd(df2_subs$contributors) 
+sd(df2_subs$contributors)
+mean(df2_subs$gini_score_dist)
+sd(df2_subs$gini_score_dist)
+mean(df2_subs$gini_score_dist_adjusted)
+sd(df2_subs$gini_score_dist_adjusted)
+
 
 print("Min/Max")
 min(df2_subs$contributors)
@@ -268,7 +261,8 @@ max(df2_subs$contributors)
 
 print("is_berlin")    
 mean(df2_subs$contributors[df2_subs$is_berlin])
-sd(df2_subs$contributors[df2_subs$is_berlin]) 
+sd(df2_subs$contributors[df2_subs$is_berlin])
+
 
 print("is_de")    
 mean(df2_subs$contributors[df2_subs$is_de])
@@ -285,6 +279,16 @@ kurtosis(df2_subs$contributors)
 max(df2_subs$interval)
 max(df2_subs$log_contributors)
 min(df2_subs$log_contributors)
+
+df2_subs_berlin <- df2_subs[df2_subs$is_berlin == TRUE,]
+mean(df2_subs_berlin$gini_score_dist)
+mean(df2_subs_berlin$contributors)
+
+for(sub in c("berlin", "de", "europe")){
+  print(sub)
+  print(length(unique(df2$author[df2$subreddit == sub])))
+  print(length(df2$author[df2$subreddit == sub]))
+}
 ```
 
 
@@ -406,15 +410,10 @@ summary(lm_model)
 
 ```
 
-### Data Set Stats
-```{r stats_dataset}
-df2_subs_berlin <- df2_subs[df2_subs$is_berlin == TRUE,]
-mean(df2_subs_berlin$gini_score_dist)
-mean(df2_subs_berlin$contributors)
+```{r models_visibility_adjusted}
 
-for(sub in c("berlin", "de", "europe")){
-  print(sub)
-  print(length(unique(df2$author[df2$subreddit == sub])))
-  print(length(df2$author[df2$subreddit == sub]))
-}
+print("Predicting C.o.Visibility Basic")
+lm_model <- lm(gini_score_dist_adjusted ~ log_contributors, data = df2_subs)
+summary(lm_model)
+
 ```
