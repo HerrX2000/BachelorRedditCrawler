@@ -76,7 +76,7 @@ print("Duplicates")
 sum(duplicated(df2$id))
 (sum(duplicated(df2$id))) / nrow(df2)
 
-df <-df[!duplicated(df2$id), ]
+df2 <-df2[!duplicated(df2$id), ]
 
 print("NAs")
 # Track down variables with missing values
