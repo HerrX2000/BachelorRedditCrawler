@@ -50,7 +50,6 @@ df2$url <- NULL
 df2$is_original_content <- NULL
 df2$author_flair_text <- NULL
 df2$is_video <- NULL
-df2$selftext <- NULL
 df2$link_flair_richtext <- NULL
 df2$domain <- NULL
 df2$over_18 <- NULL
@@ -61,15 +60,25 @@ df2$epoch <- NULL
 str(df2)
 ```
 
+
+
 ### Preprocess: Treat missing values, if applicable
 ```{r preprocess}
-df2$author[df2$author == ""] <- NA
+#Treating missing values
 nrow(df2)
 
+df2$author[df2$author == ""] <- NA
+
+df2$deleted <- ifelse(df2$selftext == "[deleted]", TRUE, FALSE)
+df2$removed <- ifelse(df2$selftext == "[removed]", TRUE, FALSE)
+
+print("Duplicates")
 sum(duplicated(df2$id))
-(sum(duplicated(df2$id))) / nrow(df)
+(sum(duplicated(df2$id))) / nrow(df2)
+
 df <-df[!duplicated(df2$id), ]
 
+print("NAs")
 # Track down variables with missing values
 sum(is.na(df2))
 colSums(is.na(df2))
@@ -78,30 +87,56 @@ colSums(is.na(df2))
 (nrow(df2) - nrow(na.omit(df2))) / nrow(df2)
 
 
-df2$date <- as.Date(df2$datetime)
+sum(df2$stickied == TRUE)
+(sum(df2$stickied == TRUE)) / nrow(df)
 
+df2 <- df2[!(df2$stickied == TRUE),]
 
+nrow(df2)
 
+```
+
+### Preprocess: Treat missing values, if applicable
+```{r precalculations}
+#Interval calculation
 to_interval <- function(anchor.date, future.date, interval.days){
-  round(as.integer(future.date - anchor.date) / interval.days, 0) + 1
+  return(round(as.integer(future.date - anchor.date) / interval.days, 0) + 1)
 }
 
+df2$date <- as.Date(df2$datetime)
+
 df2$interval <- to_interval(as.Date('2020-01-01'), 
-                          df2$date, 14 )
+                          df2$date, 14)
 
 df2$interval <- factor(df2$interval)
 
-#df2$month <- format(df2$date, "%m")
-#df2$month <- factor(df2$month)
+df2$score_adjusted <- log10(pmax(abs(df2$score), 1))
 
-#sum(df2$stickied == TRUE)
-#(sum(df2$stickied == TRUE)) / nrow(df)
+df2$deleted <- ifelse(df2$selftext == "[deleted]", TRUE, FALSE)
 
-df2 <- df2[!(df2$stickied == TRUE),]
+df2$removed <- ifelse(df2$selftext == "[removed]", TRUE, FALSE)
+
 ```
 
-### Calculations
-```{r calculations}
+### stats_dataset
+```{r stats_dataset}
+print("all")
+nrow(df2[df2$locked == TRUE,]) / nrow(df2)
+nrow(df2[df2$removed == TRUE,]) / nrow(df2)
+nrow(df2[df2$deleted == TRUE,]) / nrow(df2)
+nrow(df2[df2$removed == FALSE & df2$deleted == FALSE & is.na(df2$author),]) / nrow(df2)
+
+for(subreddit in c("berlin", "de", "europe")){
+  print(subreddit)
+  writeLines(paste("Locked %:\t\t",nrow(df2[df2$locked == TRUE & df2$subreddit == subreddit,]) / nrow(df2)))
+  writeLines(paste("Removed %:\t\t",nrow(df2[df2$removed == TRUE & df2$subreddit == subreddit,]) / nrow(df2)))
+  writeLines(paste("Deleted %:\t\t",nrow(df2[df2$deleted == TRUE & df2$subreddit == subreddit,]) / nrow(df2)))
+  writeLines(paste("Acccount deleted %:\t",nrow(df2[df2$removed == FALSE & df2$deleted == FALSE & is.na(df2$author) & df2$subreddit == subreddit,]) / nrow(df2)))
+}
+```
+
+### Preinspection
+```{r preinspection}
 data.frame(table(df2$month))
 
 df2wi <- data.frame(table(df2$interval))
@@ -112,15 +147,25 @@ tbl <- with(df2, table(subreddit, interval))
 ggplot(as.data.frame(tbl), aes(factor(interval), Freq, fill = subreddit)) +     
   geom_col(position = 'dodge')
 
+summary(df2$score)
+summary(df2$score_adjusted)
+ggplot(df2[df2$score < 1000 & df2$score > 10,], aes(score)) +
+  geom_freqpoly(binwidth = 5)
 
+
+ggplot(df2, aes(score_adjusted)) +
+  geom_freqpoly(binwidth = 0.1)
+
+```
+
+### Calculations
+```{r calculations}
 
 Gini(df2wi$Freq)
 
 nrow(df2)
 df2_with_acc <- na.omit(df2)
 nrow(df2_with_acc)
-
-#df2_with_acc <- df2_with_acc[df2_with_acc$score > 10,]
 
  
 id <- 0
@@ -137,34 +182,31 @@ df2_subs <- data.frame(
                  stringsAsFactors=TRUE
                  )
 
+
 for (subreddit in levels(df2_with_acc$subreddit)){
   df2_subreddit <- df2_with_acc[df2_with_acc$subreddit == subreddit, ]
   df2_author_prev_interval <- NULL
   for (interval in head( unique(df2_subreddit$interval), -1)){
 
-    df2_7day <- df2_subreddit[df2_subreddit$interval == interval, ]
+    df2_interval <- df2_subreddit[df2_subreddit$interval == interval, ]
     
-    df2_author_posts <- count(df2_7day, vars = "author")
+    df2_author_posts <- count(df2_interval, vars = "author")
     
-    df2_author_score <- aggregate(df2_7day$score, by=list(author=df2_7day$author), FUN=sum)
-  
+    df2_author_score <- aggregate(df2_interval$score, by=list(author=df2_interval$author), FUN=sum)
+    names(df2_author_score)[names(df2_author_score) == 'x'] <- 'sum'
+    
+    df2_author_score_adjusted <- aggregate(df2_interval$score_adjusted, by=list(author=df2_interval$author), FUN=sum)
+    names(df2_author_score_adjusted)[names(df2_author_score_adjusted) == 'x'] <- 'sum_adjusted'
     
     df2_author <- merge(df2_author_posts, df2_author_score, by="author")
-    df2_author$score_per_post <- df2_author$x / df2_author$freq
+    df2_author <- merge(df2_author, df2_author_score_adjusted, by="author")
+    
+    df2_author$score_per_post <- df2_author$sum / df2_author$freq
+    df2_author$score_per_post_adjusted <- df2_author$sum_adjusted / df2_author$freq
     df2_author$perc_of_total_post <- df2_author$freq / length(df2_author)
     
-    #Aggregation without locked posts to better invastigate Concentration of Visibility
-    df2_author_posts_wo_locked <- count(df2_7day[df2_subreddit$is_locked == FALSE,], vars = "author")
-    df2_author_score_wo_locked <- aggregate(df2_7day$score[df2_subreddit$is_locked == FALSE], by=list(author=df2_7day$author), FUN=sum)
-  
-    
-    df2_author_wo_locked <- merge(df2_author_posts_wo_locked, df2_author_score_wo_locked, by="author")
-    df2_author_wo_locked$score_per_post <- df2_author_wo_locked$x / df2_author_wo_locked$freq
-    df2_author_wo_locked$perc_of_total_post <- df2_author$freq / length(df2_author)
-
-    
     gini_score_dist <- Gini(df2_author$score_per_post)
-    gini_score_dist_adjusted <- Gini(df2_author_wo_locked$score_per_post)
+    gini_score_adjusted_dist <- Gini(df2_author$sum_adjusted)
     
     gini_post_dist <- Gini(df2_author$freq)
     
@@ -183,10 +225,10 @@ for (subreddit in levels(df2_with_acc$subreddit)){
                    interval=interval,
                    gini_post_dist=gini_post_dist,
                    gini_score_dist=gini_score_dist,
-                   gini_score_dist_adjusted = gini_score_dist_adjusted,
+                   gini_score_adjusted_dist = gini_score_adjusted_dist,
                    subreddit=subreddit,
-                   contributors = length(unique(df2_7day$author)),
-                   total_posts = length(df2_7day$id),
+                   contributors = length(unique(df2_interval$author)),
+                   total_posts = length(df2_interval$id),
                    turnover = turnover,
                    stringsAsFactors=TRUE
                    )
@@ -203,6 +245,7 @@ df2_subs$is_de <- df2_subs$subreddit == "de"
 df2_subs$is_europe <- df2_subs$subreddit == "europe"
 
 df2_subs$interval <-as.numeric(as.character(df2_subs$interval))
+
 ```
 
 ### Data Visualisation
@@ -232,7 +275,7 @@ summary(df2_subs)
 ggplot(df2_subs, aes(x=interval, y=gini_post_dist, group = subreddit, color = subreddit)) +
   geom_point() 
 
-ggplot(df2_subs, aes(x=interval, y=gini_score_dist, group = subreddit, color = subreddit)) +
+ggplot(df2_subs, aes(x=interval, y=gini_score_adjusted_dist, group = subreddit, color = subreddit)) +
   geom_point() 
 
 ggplot(df2_subs, aes(x=interval, y=contributors, group = subreddit, color = subreddit)) +
@@ -240,6 +283,8 @@ ggplot(df2_subs, aes(x=interval, y=contributors, group = subreddit, color = subr
 
 ggplot(df2_subs, aes(x=interval, y=total_posts, group = subreddit, color = subreddit)) +
   geom_point()
+
+
 
 ggplot(df2_subs[!is.na(df2_subs$turnover),], aes(x=interval, y=turnover, group = subreddit, color = subreddit)) +
   geom_point()
@@ -249,10 +294,7 @@ ggplot(df2_subs[!is.na(df2_subs$turnover),], aes(x=interval, y=turnover, group =
 ```{r stats_subreddits}
 mean(df2_subs$contributors)
 sd(df2_subs$contributors)
-mean(df2_subs$gini_score_dist)
-sd(df2_subs$gini_score_dist)
-mean(df2_subs$gini_score_dist_adjusted)
-sd(df2_subs$gini_score_dist_adjusted)
+
 
 
 print("Min/Max")
@@ -340,11 +382,10 @@ ggplot(agg, aes(x=author, y=x)) + geom_point()
 ```{r models_participation}
 mean(df2_subs$gini_post_dist)
 
-ggplot(df2_subs, aes(x=contributors, y=gini_post_dist)) +
+ggplot(df2_subs, aes(x=log_contributors, y=gini_post_dist)) +
   geom_point(aes(color = factor(subreddit))) +
   geom_smooth(method='lm', formula= y~x) +
   ylim(0,1) +
-  scale_x_continuous(trans='log2')+
   labs(title = "UC predicting distribution of participation", x = "Unique contributor(log2)", y = "Distribution of participation", color = "Subreddits")
 
 ggsave(path = "posts_files/figure-svg/", filename = "gini_distribution_participation.svg", device='svg')
@@ -362,13 +403,42 @@ summary(lm_model)
 lm_model <- lm(gini_post_dist ~ log_contributors + interval, data = df2_subs[df2_subs$is_europe,])
 summary(lm_model)
 
-lm_model <- lm(gini_post_dist ~ log_contributors + interval + is_berlin + is_de , data = df2_subs)
-summary(lm_model)
+#lm_model <- lm(gini_post_dist ~ log_contributors + interval + is_berlin + is_de , data = df2_subs)
+#summary(lm_model)
+```
+
+```{r stats_visibility}
+nrow(df2[df2$score_adjusted == 0,])
+nrow(df2[df2$score_adjusted == 0,]) / nrow(df2)
+
+
+
+print("all")
+min(df2_subs$gini_score_adjusted_dist)
+max(df2_subs$gini_score_adjusted_dist)
+mean(df2_subs$gini_score_adjusted_dist)
+sd(df2_subs$gini_score_adjusted_dist)
+
+print("is_berlin")    
+mean(df2_subs$gini_score_adjusted_dist[df2_subs$is_berlin])
+sd(df2_subs$gini_score_adjusted_dist[df2_subs$is_berlin])
+nrow(df2[df2$score_adjusted == 0 & df2$subreddit == "berlin",]) / nrow(df2[df2$subreddit == "berlin",])
+
+
+print("is_de")    
+mean(df2_subs$gini_score_adjusted_dist[df2_subs$is_de])
+sd(df2_subs$gini_score_adjusted_dist[df2_subs$is_de])
+nrow(df2[df2$score_adjusted == 0 & df2$subreddit == "de",]) / nrow(df2[df2$subreddit == "de",])
+
+print("is_europe")
+mean(df2_subs$gini_score_adjusted_dist[df2_subs$is_europe])
+sd(df2_subs$gini_score_adjusted_dist[df2_subs$is_europe])
+nrow(df2[df2$score_adjusted == 0 & df2$subreddit == "europe",]) / nrow(df2[df2$subreddit == "europe",])
 ```
 
 ```{r models_visibility}
 
-ggplot(df2_subs[df2_subs$interval!=1,], aes(x=contributors, y=gini_score_dist)) +
+ggplot(df2_subs[df2_subs$interval!=1,], aes(x=contributors, y=gini_score_adjusted_dist)) +
   geom_point(aes(color = factor(subreddit))) +
   geom_smooth(method='lm', formula= y~x) +
   ylim(0,1) +
@@ -382,38 +452,23 @@ ggsave(path = "posts_files/figure-svg/", filename = "gini_distribution_score.svg
 ggsave(path = "posts_files/figure-png/", filename = "gini_distribution_score.png", device='png')
 
 print("Predicting C.o.Visibility Basic")
-lm_model <- lm(gini_score_dist ~ log_contributors, data = df2_subs)
+lm_model <- lm(gini_score_adjusted_dist ~ log_contributors, data = df2_subs)
 summary(lm_model)
 
 print("Predicting C.o.Visibility with Group test")
-lm_model <- lm(gini_score_dist ~ log_contributors + interval + is_berlin + is_de, data = df2_subs)
+lm_model <- lm(gini_score_adjusted_dist ~ log_contributors + interval + is_berlin + is_de, data = df2_subs)
 summary(lm_model)
 
 print("Predicting C.o.Visibility when looking at all and each group")
-lm_model <- lm(gini_score_dist ~ log_contributors , data = df2_subs)
+lm_model <- lm(gini_score_adjusted_dist ~ log_contributors , data = df2_subs)
 summary(lm_model)
 
-lm_model <- lm(gini_score_dist ~ log_contributors , data = df2_subs[df2_subs$is_berlin,])
+lm_model <- lm(gini_score_adjusted_dist ~ log_contributors , data = df2_subs[df2_subs$is_berlin,])
 summary(lm_model)
 
-lm_model <- lm(gini_score_dist ~ log_contributors , data = df2_subs[df2_subs$is_de,])
+lm_model <- lm(gini_score_adjusted_dist ~ log_contributors , data = df2_subs[df2_subs$is_de,])
 summary(lm_model)
 
-lm_model <- lm(gini_score_dist ~ log_contributors , data = df2_subs[df2_subs$is_europe,])
+lm_model <- lm(gini_score_adjusted_dist ~ log_contributors , data = df2_subs[df2_subs$is_europe,])
 summary(lm_model)
-
-lm_model <- lm(gini_score_dist ~ log_contributors , data = df2_subs[(df2_subs$is_europe) & (df2_subs$interval != 1),]) #r/europe without new years effect
-summary(lm_model)
-
-lm_model <- lm(gini_score_dist ~ log_contributors , data = df2_subs[(df2_subs$is_europe) & (df2_subs$interval != c(1,7,23)),]) #r/europe without all outliers
-summary(lm_model)
-
-```
-
-```{r models_visibility_adjusted}
-
-print("Predicting C.o.Visibility Basic")
-lm_model <- lm(gini_score_dist_adjusted ~ log_contributors, data = df2_subs)
-summary(lm_model)
-
 ```
