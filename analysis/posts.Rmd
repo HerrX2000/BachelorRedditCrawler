@@ -26,15 +26,20 @@ p_load(RColorBrewer, # color pallets
 ```
 
 ### Import data set
-```{r import, cache=TRUE}
+```{r import, cache=FALSE}
 df2_berlin <- read.csv("data/posts/posts_berlin_2020.csv")
 df2_germany <- read.csv("data/posts/posts_de_2020.csv")
 df2_europe <- read.csv("data/posts/posts_europe_2020.csv")
-df2 <- rbind(df2_berlin, df2_germany, df2_europe) #df2 so it can be run in the same environment
+df2_spain <- read.csv("data/posts/posts_spain_2020.csv")
+df2_london <- read.csv("data/posts/posts_london_2020.csv")
+df2_thenetherlands <- read.csv("data/posts/posts_thenetherlands_2020.csv")
+df2 <- rbind(df2_berlin, df2_germany, df2_europe, df2_spain, df2_london, df2_thenetherlands) #df2 so it can be run in the same environment
 ```
 
-### Inspect
+### Inspect Structure
 ```{r inspect}
+str(df2)
+
 df2$over_18 <- as.logical(df2$over_18)
 df2$locked <- as.logical(df2$locked)
 df2$is_video <- as.logical(df2$is_video)
@@ -60,43 +65,7 @@ df2$epoch <- NULL
 str(df2)
 ```
 
-
-
-### Preprocess: Treat missing values, if applicable
-```{r preprocess}
-#Treating missing values
-nrow(df2)
-
-df2$author[df2$author == ""] <- NA
-
-df2$deleted <- ifelse(df2$selftext == "[deleted]", TRUE, FALSE)
-df2$removed <- ifelse(df2$selftext == "[removed]", TRUE, FALSE)
-
-print("Duplicates")
-sum(duplicated(df2$id))
-(sum(duplicated(df2$id))) / nrow(df2)
-
-df2 <-df2[!duplicated(df2$id), ]
-
-print("NAs")
-# Track down variables with missing values
-sum(is.na(df2))
-colSums(is.na(df2))
-
-# Check the percentage of missing values in the data set
-(nrow(df2) - nrow(na.omit(df2))) / nrow(df2)
-
-
-sum(df2$stickied == TRUE)
-(sum(df2$stickied == TRUE)) / nrow(df)
-
-df2 <- df2[!(df2$stickied == TRUE),]
-
-nrow(df2)
-
-```
-
-### Preprocess: Treat missing values, if applicable
+### Precalculations for artifical variables
 ```{r precalculations}
 #Interval calculation
 to_interval <- function(anchor.date, future.date, interval.days){
@@ -111,12 +80,46 @@ df2$interval <- to_interval(as.Date('2020-01-01'),
 df2$interval <- factor(df2$interval)
 
 df2$score_adjusted <- log10(pmax(abs(df2$score), 1))
+```
+
+### Preprocess: Treat missing values, if applicable
+```{r preprocess}
+#Treating missing values
+nrow(df2)
+
+df2$author[identical(df2$author, character(0))] <- NA
+df2$author[df2$author == ""] <- NA
 
 df2$deleted <- ifelse(df2$selftext == "[deleted]", TRUE, FALSE)
-
 df2$removed <- ifelse(df2$selftext == "[removed]", TRUE, FALSE)
+df2$selftext <- NULL
 
+print("Duplicates")
+sum(duplicated(df2$id))
+(sum(duplicated(df2$id))) / nrow(df2)
+df2 <-df2[!duplicated(df2$id), ]
+
+print("NAs")
+# Track down variables with missing values
+sum(is.na(df2))
+colSums(is.na(df2))
+
+# Check the percentage of missing values in the data set
+(nrow(df2) - nrow(na.omit(df2))) / nrow(df2)
+
+print("Stickied")
+sum(df2$stickied == TRUE)
+(sum(df2$stickied == TRUE)) / nrow(df)
+
+df2 <- df2[!(df2$stickied == TRUE),]
+
+nrow(df2)
+
+df2$id <- NULL 
+write.csv(df2, "./output/posts_2020_raw_anonymized.csv")
 ```
+
+
 
 ### stats_dataset
 ```{r stats_dataset}
@@ -126,7 +129,7 @@ nrow(df2[df2$removed == TRUE,]) / nrow(df2)
 nrow(df2[df2$deleted == TRUE,]) / nrow(df2)
 nrow(df2[df2$removed == FALSE & df2$deleted == FALSE & is.na(df2$author),]) / nrow(df2)
 
-for(subreddit in c("berlin", "de", "europe")){
+for(subreddit in levels(df2$subreddit)){
   print(subreddit)
   writeLines(paste("Locked %:\t\t",nrow(df2[df2$locked == TRUE & df2$subreddit == subreddit,]) / nrow(df2)))
   writeLines(paste("Removed %:\t\t",nrow(df2[df2$removed == TRUE & df2$subreddit == subreddit,]) / nrow(df2)))
@@ -165,6 +168,7 @@ Gini(df2wi$Freq)
 
 nrow(df2)
 df2_with_acc <- na.omit(df2)
+df2_with_acc <- df2_with_acc[!(df2_with_acc$author %in% c("HeadlinesBaby","CosmeticsColour","30ustice4","srvnmdomdotnet","BrandBrahma","katysha1234","crypticvalentine","sn0r","NilTheory","ds355958","S_Kapismus","Tantikurnia695","Tantikurnia695","Mindquiz")),] #News bot or suspended accounts removed
 nrow(df2_with_acc)
 
  
@@ -188,27 +192,30 @@ for (subreddit in levels(df2_with_acc$subreddit)){
   df2_author_prev_interval <- NULL
   for (interval in head( unique(df2_subreddit$interval), -1)){
 
+    #Get posts of subbredit in current interval
     df2_interval <- df2_subreddit[df2_subreddit$interval == interval, ]
     
+    #Posts per Author
     df2_author_posts <- count(df2_interval, vars = "author")
     
-    df2_author_score <- aggregate(df2_interval$score, by=list(author=df2_interval$author), FUN=sum)
-    names(df2_author_score)[names(df2_author_score) == 'x'] <- 'sum'
-    
+    #Sum score per Author
     df2_author_score_adjusted <- aggregate(df2_interval$score_adjusted, by=list(author=df2_interval$author), FUN=sum)
     names(df2_author_score_adjusted)[names(df2_author_score_adjusted) == 'x'] <- 'sum_adjusted'
     
-    df2_author <- merge(df2_author_posts, df2_author_score, by="author")
-    df2_author <- merge(df2_author, df2_author_score_adjusted, by="author")
+    df2_author <- merge(df2_author_posts, df2_author_score_adjusted, by="author")
     
-    df2_author$score_per_post <- df2_author$sum / df2_author$freq
     df2_author$score_per_post_adjusted <- df2_author$sum_adjusted / df2_author$freq
     df2_author$perc_of_total_post <- df2_author$freq / length(df2_author)
     
-    gini_score_dist <- Gini(df2_author$score_per_post)
+    #Find suspected bots by hand
+    if(nrow(df2_author[df2_author$perc_of_total_post > 8,]) & subreddit == "spain"){
+      print(df2_author$author[df2_author$perc_of_total_post > 8])
+    }
+    
     gini_score_adjusted_dist <- Gini(df2_author$sum_adjusted)
     
     gini_post_dist <- Gini(df2_author$freq)
+    
     
     
     turnover <- double()
@@ -224,7 +231,6 @@ for (subreddit in levels(df2_with_acc$subreddit)){
                    id=id,
                    interval=interval,
                    gini_post_dist=gini_post_dist,
-                   gini_score_dist=gini_score_dist,
                    gini_score_adjusted_dist = gini_score_adjusted_dist,
                    subreddit=subreddit,
                    contributors = length(unique(df2_interval$author)),
@@ -244,6 +250,8 @@ df2_subs$is_berlin <- df2_subs$subreddit == "berlin"
 df2_subs$is_de <- df2_subs$subreddit == "de"
 df2_subs$is_europe <- df2_subs$subreddit == "europe"
 
+df2_subs$group <- ifelse(df2_subs$subreddit %in% c("europe","de"),"2","1")
+
 df2_subs$interval <-as.numeric(as.character(df2_subs$interval))
 
 ```
@@ -257,7 +265,6 @@ subreddit_colors <- c("berlin" = "#f8766d", "de" = "#00ba38", "europe" ="#619cff
 
 ggplot(df2_subs, aes(x = reorder(id, contributors), y = contributors, fill = subreddit)) +
   geom_bar(stat = "identity", binwidth=0, width=1) +
-  scale_fill_manual(name = "Subreddit", values=subreddit_colors) +
   ggtitle("UC Distribution by Groups")+
   ylab("UC") +
   xlab("Datapoints ordered by UC")+
@@ -296,7 +303,6 @@ mean(df2_subs$contributors)
 sd(df2_subs$contributors)
 
 
-
 print("Min/Max")
 min(df2_subs$contributors)
 max(df2_subs$contributors)
@@ -310,10 +316,6 @@ print("is_de")
 mean(df2_subs$contributors[df2_subs$is_de])
 sd(df2_subs$contributors[df2_subs$is_de]) 
 
-print("is_europe")
-mean(df2_subs$contributors[df2_subs$is_europe])
-sd(df2_subs$contributors[df2_subs$is_europe]) 
-
 print("skewness")
 skewness(df2_subs$contributors)
 kurtosis(df2_subs$contributors)
@@ -326,13 +328,29 @@ df2_subs_berlin <- df2_subs[df2_subs$is_berlin == TRUE,]
 mean(df2_subs_berlin$gini_score_dist)
 mean(df2_subs_berlin$contributors)
 
-for(sub in c("berlin", "de", "europe")){
+for(sub in levels(df2$subreddit)){
   print(sub)
-  print(length(unique(df2$author[df2$subreddit == sub])))
-  print(length(df2$author[df2$subreddit == sub]))
+  writeLines(paste("Total UC: \t",length(unique(df2$author[df2$subreddit == sub]))))
+  writeLines(paste("Total posts: \t",nrow(df2[df2$subreddit == sub,])))
 }
 ```
+```{r stats_turnover}
 
+print("all")
+min(df2_subs$turnover[!is.na(df2_subs$turnover)])
+max(df2_subs$turnover[!is.na(df2_subs$turnover)])
+mean(df2_subs$turnover[!is.na(df2_subs$turnover)])
+sd(df2_subs$turnover[!is.na(df2_subs$turnover)])
+
+print("Category I")
+mean(df2_subs$turnover[df2_subs$group == 1 & !is.na(df2_subs$turnover)])
+sd(df2_subs$turnover[df2_subs$group == 1 & !is.na(df2_subs$turnover)])
+
+print("Category II")
+mean(df2_subs$turnover[df2_subs$group == 2 & !is.na(df2_subs$turnover)])
+sd(df2_subs$turnover[df2_subs$group == 2 & !is.na(df2_subs$turnover)])
+
+```
 
 ```{r models_turnover}
 ggplot(df2_subs[!is.na(df2_subs$turnover),], aes(x=contributors, y=turnover)) +
@@ -340,7 +358,7 @@ ggplot(df2_subs[!is.na(df2_subs$turnover),], aes(x=contributors, y=turnover)) +
   geom_smooth(method='lm', formula= y~x) +
   ylim(0,1) +
   scale_x_continuous(trans='log2') +
-  labs(title = "UC predicting turnover", x = "Unique contributor/Week (log2)", y = "Turnover", color = "Subreddits")
+  labs(title = "UC predicting turnover", x = "Unique contributor", y = "Turnover", color = "Subreddits")
 
 ggsave(path = "posts_files/figure-svg/", filename = "turnover.svg", device='svg')
 ggsave(path = "posts_files/figure-png/", filename = "turnover.png", device='png')
@@ -352,24 +370,17 @@ summary(lm_model)
 lm_model <- lm(turnover ~ log_contributors + interval, data = df2_subs)
 summary(lm_model)
 
-lm_model <- lm(turnover ~ log_contributors + interval + is_berlin + is_de, data = df2_subs)
-summary(lm_model)
-
-lm_model <- lm(turnover ~ log_contributors * is_berlin + log_contributors * is_de + is_berlin + is_de, data = df2_subs)
-summary(lm_model)
 
 print("Predicting Turnover when looking at all and each group")
 lm_model <- lm(turnover ~ log_contributors + interval, data = df2_subs)
 summary(lm_model)
 
-lm_model <- lm(turnover ~ log_contributors + interval, data = df2_subs[df2_subs$is_berlin,])
+lm_model <- lm(turnover ~ log_contributors + interval, data = df2_subs[df2_subs$group == 1,])
 summary(lm_model)
 
-lm_model <- lm(turnover ~ log_contributors + interval, data = df2_subs[df2_subs$is_de,])
+lm_model <- lm(turnover ~ log_contributors + interval, data = df2_subs[df2_subs$group == 2,])
 summary(lm_model)
 
-lm_model <- lm(turnover ~ log_contributors + interval, data = df2_subs[df2_subs$is_europe,])
-summary(lm_model)
 
 "
 agg <- aggregate(df2_with_acc$score, by=list(author=df2_with_acc$author), FUN=sum)
@@ -378,15 +389,42 @@ ggplot(agg, aes(x=author, y=x)) + geom_point()
 
 ```
 
+
+```{r stats_participation}
+#Plots that were used to invastigate very high spikes in concentration of participation. Turned out to spammers and bots.
+ggplot(df2_subs[df2_subs$subreddit =='london',], aes(x=interval, y=total_posts)) +
+  geom_point(aes(color = factor(subreddit), size = contributors))
+
+ggplot(df2_subs[df2_subs$subreddit =='thenetherlands',], aes(x=interval, y=total_posts)) +
+  geom_point(aes(color = factor(subreddit), size = contributors))
+
+
+print("all")
+min(df2_subs$gini_post_dist)
+max(df2_subs$gini_post_dist)
+mean(df2_subs$gini_post_dist)
+sd(df2_subs$gini_post_dist)
+
+print("Category I")
+mean(df2_subs$gini_post_dist[df2_subs$group == 1])
+sd(df2_subs$gini_post_dist[df2_subs$group == 1])
+
+print("Category II")
+mean(df2_subs$gini_post_dist[df2_subs$group == 2])
+sd(df2_subs$gini_post_dist[df2_subs$group == 2])
+
+```
 ### Models
 ```{r models_participation}
 mean(df2_subs$gini_post_dist)
 
-ggplot(df2_subs, aes(x=log_contributors, y=gini_post_dist)) +
+ggplot(df2_subs, aes(x=contributors, y=gini_post_dist)) +
   geom_point(aes(color = factor(subreddit))) +
   geom_smooth(method='lm', formula= y~x) +
   ylim(0,1) +
-  labs(title = "UC predicting distribution of participation", x = "Unique contributor(log2)", y = "Distribution of participation", color = "Subreddits")
+  scale_x_continuous(trans='log2') +
+  labs(title = "UC predicting distribution of participation", x = "Unique contributor", y = "Distribution of participation", color = "Subreddits")
+
 
 ggsave(path = "posts_files/figure-svg/", filename = "gini_distribution_participation.svg", device='svg')
 ggsave(path = "posts_files/figure-png/", filename = "gini_distribution_participation.png", device='png')
@@ -394,17 +432,12 @@ ggsave(path = "posts_files/figure-png/", filename = "gini_distribution_participa
 lm_model <- lm(gini_post_dist ~ log_contributors + interval, data = df2_subs)
 summary(lm_model)
 
-lm_model <- lm(gini_post_dist ~ log_contributors + interval, data = df2_subs[df2_subs$is_berlin,])
+lm_model <- lm(gini_post_dist ~ log_contributors + interval, data = df2_subs[df2_subs$group == 1,])
 summary(lm_model)
 
-lm_model <- lm(gini_post_dist ~ log_contributors + interval, data = df2_subs[df2_subs$is_de,])
+lm_model <- lm(gini_post_dist ~ log_contributors + interval, data = df2_subs[df2_subs$group == 2,])
 summary(lm_model)
 
-lm_model <- lm(gini_post_dist ~ log_contributors + interval, data = df2_subs[df2_subs$is_europe,])
-summary(lm_model)
-
-#lm_model <- lm(gini_post_dist ~ log_contributors + interval + is_berlin + is_de , data = df2_subs)
-#summary(lm_model)
 ```
 
 ```{r stats_visibility}
@@ -444,7 +477,7 @@ ggplot(df2_subs[df2_subs$interval!=1,], aes(x=contributors, y=gini_score_adjuste
   ylim(0,1) +
   scale_x_continuous(trans='log2') +
   labs(title = "UC predicting Concentration of Visibility",
-       x = "Unique contributor/Interval (log2)",
+       x = "Unique contributor",
        y = "Concentration of Visibility",
        color = "Subreddits")
 
@@ -463,12 +496,10 @@ print("Predicting C.o.Visibility when looking at all and each group")
 lm_model <- lm(gini_score_adjusted_dist ~ log_contributors , data = df2_subs)
 summary(lm_model)
 
-lm_model <- lm(gini_score_adjusted_dist ~ log_contributors , data = df2_subs[df2_subs$is_berlin,])
+lm_model <- lm(gini_score_adjusted_dist ~ log_contributors , data = df2_subs[df2_subs$group == 1,])
 summary(lm_model)
 
-lm_model <- lm(gini_score_adjusted_dist ~ log_contributors , data = df2_subs[df2_subs$is_de,])
+lm_model <- lm(gini_score_adjusted_dist ~ log_contributors , data = df2_subs[df2_subs$group == 2,])
 summary(lm_model)
 
-lm_model <- lm(gini_score_adjusted_dist ~ log_contributors , data = df2_subs[df2_subs$is_europe,])
-summary(lm_model)
 ```
