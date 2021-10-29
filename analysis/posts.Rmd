@@ -63,6 +63,7 @@ df2$num_comments <- NULL
 df2$epoch <- NULL
 
 str(df2)
+
 ```
 
 ### Precalculations for artifical variables
@@ -208,7 +209,7 @@ for (subreddit in levels(df2_with_acc$subreddit)){
     df2_author$perc_of_total_post <- df2_author$freq / length(df2_author)
     
     #Find suspected bots by hand
-    if(nrow(df2_author[df2_author$perc_of_total_post > 8,]) & subreddit == "spain"){
+    if(nrow(df2_author[df2_author$perc_of_total_post > 8,])){
       print(df2_author$author[df2_author$perc_of_total_post > 8])
     }
     
