@@ -81,6 +81,7 @@ df2$interval <- to_interval(as.Date('2020-01-01'),
 df2$interval <- factor(df2$interval)
 
 df2$score_adjusted <- log10(pmax(abs(df2$score), 1))
+df2$score_adjusted <- ave(df2$score_adjusted, df2$subreddit, FUN=function(x) x/max(x)) #Normalize within groups (does not really matter due to the way gini is calculated.-)
 ```
 
 ### Preprocess: Treat missing values, if applicable
@@ -160,6 +161,7 @@ ggplot(df2[df2$score < 1000 & df2$score > 10,], aes(score)) +
 ggplot(df2, aes(score_adjusted)) +
   geom_freqpoly(binwidth = 0.1)
 
+
 ```
 
 ### Calculations
@@ -235,7 +237,7 @@ for (subreddit in levels(df2_with_acc$subreddit)){
                    gini_score_adjusted_dist = gini_score_adjusted_dist,
                    subreddit=subreddit,
                    contributors = length(unique(df2_interval$author)),
-                   total_posts = length(df2_interval$id),
+                   total_posts = nrow(df2_interval),
                    turnover = turnover,
                    stringsAsFactors=TRUE
                    )
@@ -256,16 +258,18 @@ df2_subs$group <- ifelse(df2_subs$subreddit %in% c("europe","de"),"2","1")
 df2_subs$interval <-as.numeric(as.character(df2_subs$interval))
 
 ```
+### Category Colors
+```{r subreddit_visualdata}
+subreddit_colors <- c(  "europe" ="#005f73", "de" = "#94d2bd", "berlin" = "#ee9b00", "london" = "#ca6702", "spain" = "#bb3e03", "thenetherlands" = "#9b2226")
+```
 
 ### Data Visualisation
-Used to check for incomplette data or outliers
+Used to check for incomplete data and outliers
 ```{r visualisation, eval = TRUE}
-subreddit_colors <- c("berlin" = "#f8766d", "de" = "#00ba38", "europe" ="#619cff")
-
-
 
 ggplot(df2_subs, aes(x = reorder(id, contributors), y = contributors, fill = subreddit)) +
   geom_bar(stat = "identity", binwidth=0, width=1) +
+  scale_fill_manual(values = subreddit_colors)+
   ggtitle("UC Distribution by Groups")+
   ylab("UC") +
   xlab("Datapoints ordered by UC")+
@@ -359,7 +363,8 @@ ggplot(df2_subs[!is.na(df2_subs$turnover),], aes(x=contributors, y=turnover)) +
   geom_smooth(method='lm', formula= y~x) +
   ylim(0,1) +
   scale_x_continuous(trans='log2') +
-  labs(title = "UC predicting turnover", x = "Unique contributor", y = "Turnover", color = "Subreddits")
+  labs(title = "UC predicting turnover", x = "Unique contributor", y = "Turnover", color = "Subreddits") +
+  scale_color_manual(values = subreddit_colors)
 
 ggsave(path = "posts_files/figure-svg/", filename = "turnover.svg", device='svg')
 ggsave(path = "posts_files/figure-png/", filename = "turnover.png", device='png')
@@ -394,10 +399,12 @@ ggplot(agg, aes(x=author, y=x)) + geom_point()
 ```{r stats_participation}
 #Plots that were used to invastigate very high spikes in concentration of participation. Turned out to spammers and bots.
 ggplot(df2_subs[df2_subs$subreddit =='london',], aes(x=interval, y=total_posts)) +
-  geom_point(aes(color = factor(subreddit), size = contributors))
+  geom_point(aes(color = factor(subreddit), size = contributors))+
+  scale_color_manual(values = subreddit_colors)
 
 ggplot(df2_subs[df2_subs$subreddit =='thenetherlands',], aes(x=interval, y=total_posts)) +
-  geom_point(aes(color = factor(subreddit), size = contributors))
+  geom_point(aes(color = factor(subreddit), size = contributors))+
+  scale_color_manual(values = subreddit_colors)
 
 
 print("all")
@@ -424,7 +431,8 @@ ggplot(df2_subs, aes(x=contributors, y=gini_post_dist)) +
   geom_smooth(method='lm', formula= y~x) +
   ylim(0,1) +
   scale_x_continuous(trans='log2') +
-  labs(title = "UC predicting distribution of participation", x = "Unique contributor", y = "Distribution of participation", color = "Subreddits")
+  labs(title = "UC predicting distribution of participation", x = "Unique contributor", y = "Distribution of participation", color = "Subreddits")+
+  scale_color_manual(values = subreddit_colors)
 
 
 ggsave(path = "posts_files/figure-svg/", filename = "gini_distribution_participation.svg", device='svg')
@@ -439,6 +447,21 @@ summary(lm_model)
 lm_model <- lm(gini_post_dist ~ log_contributors + interval, data = df2_subs[df2_subs$group == 2,])
 summary(lm_model)
 
+```
+```{r graphs_visibility}
+ggplot(df2_subs[df2_subs$interval!=1,], aes(x=contributors, y=gini_score_adjusted_dist)) +
+  geom_point(aes(color = factor(subreddit))) +
+  geom_smooth(method='lm', formula= y~x) +
+  ylim(0,1) +
+  scale_x_continuous(trans='log2') +
+  labs(title = "UC predicting Concentration of Visibility",
+       x = "Unique contributor",
+       y = "Concentration of Visibility",
+       color = "Subreddits")+
+  scale_color_manual(values = subreddit_colors)
+
+ggsave(path = "posts_files/figure-svg/", filename = "gini_distribution_score.svg", device='svg')
+ggsave(path = "posts_files/figure-png/", filename = "gini_distribution_score.png", device='png')
 ```
 
 ```{r stats_visibility}
@@ -471,20 +494,6 @@ nrow(df2[df2$score_adjusted == 0 & df2$subreddit == "europe",]) / nrow(df2[df2$s
 ```
 
 ```{r models_visibility}
-
-ggplot(df2_subs[df2_subs$interval!=1,], aes(x=contributors, y=gini_score_adjusted_dist)) +
-  geom_point(aes(color = factor(subreddit))) +
-  geom_smooth(method='lm', formula= y~x) +
-  ylim(0,1) +
-  scale_x_continuous(trans='log2') +
-  labs(title = "UC predicting Concentration of Visibility",
-       x = "Unique contributor",
-       y = "Concentration of Visibility",
-       color = "Subreddits")
-
-ggsave(path = "posts_files/figure-svg/", filename = "gini_distribution_score.svg", device='svg')
-ggsave(path = "posts_files/figure-png/", filename = "gini_distribution_score.png", device='png')
-
 print("Predicting C.o.Visibility Basic")
 lm_model <- lm(gini_score_adjusted_dist ~ log_contributors, data = df2_subs)
 summary(lm_model)
