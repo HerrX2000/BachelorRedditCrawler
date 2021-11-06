@@ -52,6 +52,8 @@ df$subreddit <- as.factor(df$subreddit)
 df$date <- as.Date(df$datetime)
 
 #removing unused columns
+df$author_flair_text <-NULL #Not used
+df$total_awards_received <- NULL #Not used
 df$all_awardings <- NULL #JSON Object
 df$associated_award <- NULL #Not reliably provided by Pushshift
 df$author_created_utc <- NULL #Epoch time stamp when a author created his account but not reliably provided by Pushshift
@@ -350,14 +352,17 @@ kurtosis(df_subs$contributors)
 
 ```
 
+### Category Colors
+```{r category_visualdata}
+category_colors <- c("1" = "#000000", "2.1" = "#000099", "2.2" ="#1144bb", "2.3" = "#5577EE", "3" = "#e6ac00")
+category_labels <- c("1" = "Continent", "2.1" = "Country English", "2.2" ="Country Bilingual", "2.3" = "Country Native", "3" = "City")
+
+```
 
 ## Data Visualisation to explore the dataset in generall
 ```{r visualisation}
 
 df_subs$interval <-as.numeric(as.character(df_subs$interval))
-
-category_colors <- c("1" = "#000000", "2.1" = "#000099", "2.2" ="#1144bb", "2.3" = "#5577EE", "3" = "#e6ac00")
-category_labels <- c("1" = "Continent", "2.1" = "Country English", "2.2" ="Country Bilingual", "2.3" = "Country Native", "3" = "City")
 
 ggplot(df_subs, aes(x = reorder(id, contributors), y = contributors, color = group)) +
   geom_bar(stat = "identity") +
@@ -389,12 +394,7 @@ str(df_subs)
 summary(df_subs)
 ```
 
-### Category Colors
-```{r category_visualdata}
-category_colors <- c("1" = "#000000", "2.1" = "#000099", "2.2" ="#1144bb", "2.3" = "#5577EE", "3" = "#e6ac00")
-category_labels <- c("1" = "Continent", "2.1" = "Country English", "2.2" ="Country Bilingual", "2.3" = "Country Native", "3" = "City")
 
-```
 
 ### Testing ANOVA
 ```{r anova}
