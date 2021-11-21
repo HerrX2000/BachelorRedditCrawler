@@ -363,7 +363,7 @@ ggplot(df2_subs[!is.na(df2_subs$turnover),], aes(x=contributors, y=turnover)) +
   geom_smooth(method='lm', formula= y~x) +
   ylim(0,1) +
   scale_x_continuous(trans='log2') +
-  labs(title = "UC predicting turnover", x = "Unique contributor", y = "Turnover", color = "Subreddits") +
+  labs(title = "UC predicting turnover", x = "Unique contributors/Interval", y = "Turnover", color = "Subreddits") +
   scale_color_manual(values = subreddit_colors)
 
 ggsave(path = "posts_files/figure-svg/", filename = "turnover.svg", device='svg')
@@ -431,7 +431,7 @@ ggplot(df2_subs, aes(x=contributors, y=gini_post_dist)) +
   geom_smooth(method='lm', formula= y~x) +
   ylim(0,1) +
   scale_x_continuous(trans='log2') +
-  labs(title = "UC predicting distribution of participation", x = "Unique contributor", y = "Distribution of participation", color = "Subreddits")+
+  labs(title = "UC predicting Concentration of participation", x = "Unique contributors/Interval", y = "Concentration of Participation (Gini)", color = "Subreddits")+
   scale_color_manual(values = subreddit_colors)
 
 
@@ -455,8 +455,8 @@ ggplot(df2_subs[df2_subs$interval!=1,], aes(x=contributors, y=gini_score_adjuste
   ylim(0,1) +
   scale_x_continuous(trans='log2') +
   labs(title = "UC predicting Concentration of Visibility",
-       x = "Unique contributor",
-       y = "Concentration of Visibility",
+       x = "Unique contributors/Interval",
+       y = "Concentration of Visibility (Gini)",
        color = "Subreddits")+
   scale_color_manual(values = subreddit_colors)
 
