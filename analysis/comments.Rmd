@@ -4,6 +4,7 @@ author: "Frederik Mann"
 date: "15 7 2021"
 output:
   html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -152,17 +153,6 @@ df_sub_uc
 mean(df_sub_uc$unique_contributors)
 sd(df_sub_uc$unique_contributors)
 
-print("all")
-nrow(df[df$locked == TRUE,]) / nrow(df)
-nrow(df[df$removed == TRUE,]) / nrow(df)
-nrow(df[df$deleted == TRUE,]) / nrow(df)
-nrow(df[df$removed == FALSE & df$deleted == FALSE & is.na(df$author),]) / nrow(df)
-
-###Alternative methode. Not used.
-###df$month <- format(df$date, "%m")
-###df$month <- factor(df$month) #another way of making intervals, but not used in analysis.
-###data.frame(table(df$month))
-
 #Check if interval works correctly
 #KW: Calender
 #Interval 1 (KW 1-2): New years effect
@@ -183,6 +173,20 @@ ggplot(as.data.frame(tbl), aes(factor(interval), Freq, fill = subreddit)) +
 
 #Overall
 Gini(dfwi$Freq)
+
+print("all")
+nrow(df[df$locked == TRUE,]) / nrow(df)
+nrow(df[df$removed == TRUE,]) / nrow(df)
+nrow(df[df$deleted == TRUE,]) / nrow(df)
+nrow(df[df$removed == FALSE & df$deleted == FALSE & is.na(df$author),]) / nrow(df)
+
+for(subreddit in levels(df$subreddit)){
+  print(subreddit)
+  writeLines(paste("Locked %:\t\t",nrow(df[df$locked == TRUE & df$subreddit == subreddit,]) / nrow(df)))
+  writeLines(paste("Removed %:\t\t",nrow(df[df$removed == TRUE & df$subreddit == subreddit,]) / nrow(df)))
+  writeLines(paste("Deleted %:\t\t",nrow(df[df$deleted == TRUE & df$subreddit == subreddit,]) / nrow(df)))
+  writeLines(paste("Acccount deleted %:\t",nrow(df[df$removed == FALSE & df$deleted == FALSE & is.na(df$author) & df$subreddit == subreddit,]) / nrow(df)))
+}
 ```
 
 ### Calculations to aggregate data by subreddit
@@ -203,7 +207,6 @@ df_subs <- data.frame(
                  id=factor(),
                  interval=character(),
                  gini_comment_dist=double(),
-                 gini_score_dist=double(),
                  subreddit=factor(levels = levels(df_with_acc$subreddit)),
                  contributors = integer(),
                  total_comments = integer(),
@@ -249,11 +252,9 @@ for (subreddit in levels(df_with_acc$subreddit)){
     where xi = number of comments by UC in a given month in a 
     given subreddit and n = number of UCs in a given month in a 
     given subreddit.
+    Panek et al. 2018
     "
     gini_comment_dist <- Gini(df_author$n)
-    
-
-    gini_score_dist <- Gini(df_author$score_per_comment) #NOT USED.
     
     "
     Turnover  was  determined  by  comparing  a  list  of  
@@ -271,6 +272,7 @@ for (subreddit in levels(df_with_acc$subreddit)){
     0. If no UCs who contributed to discourse in the first month 
     also contributed in the second month, turnover was equal to 
     1 (M = .65;  SD = .13).
+    Panek et al. 2018
     "
     
     turnover <- double()
@@ -326,6 +328,11 @@ str(df_subs)
 
 ### Calculated Subreddit Data Set Stats
 ```{r stats_subreddits}
+nrow(df_subs)
+nrow(df_subs[df_subs$is_city,])
+nrow(df_subs[df_subs$is_country,])
+nrow(df_subs[df_subs$is_continent,])
+
 mean(df_subs$contributors)
 sd(df_subs$contributors) 
 
@@ -333,13 +340,29 @@ print("Min/Max")
 min(df_subs$contributors)
 max(df_subs$contributors)
 
+print("Min/Max")
+min(df_subs$log_contributors)
+max(df_subs$log_contributors)
+
 print("is_city")    
 mean(df_subs$contributors[df_subs$is_city])
 sd(df_subs$contributors[df_subs$is_city]) 
 
 print("is_country")    
 mean(df_subs$contributors[df_subs$is_country])
-sd(df_subs$contributors[df_subs$is_country]) 
+sd(df_subs$contributors[df_subs$is_country])
+
+print("is_country_bi")    
+mean(df_subs$contributors[df_subs$is_country_bi])
+sd(df_subs$contributors[df_subs$is_country_bi]) 
+
+print("is_country_english")    
+mean(df_subs$contributors[df_subs$is_country_english])
+sd(df_subs$contributors[df_subs$is_country_english]) 
+
+print("is_country_native")    
+mean(df_subs$contributors[df_subs$is_country_native])
+sd(df_subs$contributors[df_subs$is_country_native]) 
 
 print("is_continent")
 mean(df_subs$contributors[df_subs$is_continent])
@@ -411,16 +434,17 @@ pairwise.t.test(df_subs_cities$gini_comment_dist, df_subs_cities$subreddit)
 
 ```
 
-## Concentration of participation
+## Concentration of Participation
+### Concentration of Participation graphs
 ```{r participation_graphs}
 ggplot(df_subs, aes(x=contributors, y=gini_comment_dist, group = NULL, color = NULL)) +
   geom_point(aes(color=factor(group))) +
   geom_smooth(method='lm', formula= y~x) +
   scale_x_continuous(trans='log2') +
   ylim(0,1) +
-  ggtitle("UC predicting concentration of participation")+
-  ylab("Concentration of participation (Gini)") +
-  xlab("Unique contributors")+
+  ggtitle("UC predicting Concentration of Participation")+
+  ylab("Concentration of Participation (Gini)") +
+  xlab("Unique Contributors/Interval")+
   scale_color_manual(name = "Category", values=category_colors, labels=category_labels)
 
 
@@ -435,8 +459,8 @@ ggplot(df_subs[df_subs$is_country_english,], aes(x=contributors, y=gini_comment_
   scale_x_continuous(trans='log2') +
   ylim(0,1) +
   ggtitle("Country English")+
-  ylab("Concentration of participation (Gini)") +
-  xlab("Unique contributors")
+  ylab("Concentration of Participation (Gini)") +
+  xlab("Unique Contributors/Interval")
 
 #Graph with only with country bi
 ggplot(df_subs[df_subs$is_country_bi,], aes(x=contributors, y=gini_comment_dist, group = NULL, color = NULL)) +
@@ -445,8 +469,8 @@ ggplot(df_subs[df_subs$is_country_bi,], aes(x=contributors, y=gini_comment_dist,
   scale_x_continuous(trans='log2') +
   ylim(0,1) +
   ggtitle("Country Bi")+
-  ylab("Concentration of participation (Gini)") +
-  xlab("Unique contributors")
+  ylab("Concentration of Participation (Gini)") +
+  xlab("Unique Contributors/Interval")
 
 #Graph with only with country native
 ggplot(df_subs[df_subs$is_country_native,], aes(x=contributors, y=gini_comment_dist, group = NULL, color = NULL)) +
@@ -455,8 +479,8 @@ ggplot(df_subs[df_subs$is_country_native,], aes(x=contributors, y=gini_comment_d
   scale_x_continuous(trans='log2') +
   ylim(0,1) +
   ggtitle("Country Native")+
-  ylab("Concentration of participation (Gini)") +
-  xlab("Unique contributors")
+  ylab("Concentration of Participation (Gini)") +
+  xlab("Unique Contributors/Interval")
 
 #Graph with only with cities native
 ggplot(df_subs[df_subs$is_city,], aes(x=contributors, y=gini_comment_dist, group = NULL, color = NULL)) +
@@ -465,20 +489,20 @@ ggplot(df_subs[df_subs$is_city,], aes(x=contributors, y=gini_comment_dist, group
   scale_x_continuous(trans='log2') +
   ylim(0,1) +
   ggtitle("City")+
-  ylab("Concentration of participation (Gini)") +
-  xlab("Unique contributors")
+  ylab("Concentration of Participation (Gini)") +
+  xlab("Unique Contributors/Interval")
 
 ```
-### Stats
+### Concentration of Participation Stats
 ```{r participation_stats}
 mean(df_subs$gini_comment_dist)
 ```
-### Investigation
+### Concentration of Participation Investigation
 ```{r participation_stats_investigation}
 print("SD es vs contry_native")
 sd(df_subs$gini_comment_dist[df_subs$subreddit == "es"])
 
-df_agg_sd <- aggregate(gini_comment_dist ~ subreddit, data=df_subs[df_subs$is_country_native,], sd) #Aggregate SD
+df_agg_sd <- aggregate(gini_comment_dist ~ subreddit, data=df_subs[df_subs$is_country_native & df_subs$subreddit != "es",], sd) #Aggregate SD
 mean(df_agg_sd$gini_comment_dist) #Average SD within country native
 
 
@@ -498,7 +522,7 @@ df_agg_sd <- aggregate(gini_comment_dist ~ subreddit, data=df_subs[df_subs$subre
 mean(df_agg_sd$gini_comment_dist) #Average SD without r/berlin and r/london within city
 ```
 
-### Models
+### Concentration of Participation Models
 ```{r participation_models}
 
 lm_model <- lm(gini_comment_dist ~ log_contributors + interval, data = df_subs)
@@ -529,7 +553,7 @@ ggplot(df_subs[!is.na(df_subs$turnover),], aes(x=contributors, y=turnover)) +
   ylim(0,1) +
   ggtitle("UCs predicting turnover")+
   ylab("Turnover") +
-  xlab("Unique contributors")+
+  xlab("Unique Contributors/Interval")+
   scale_color_manual(name = "Category", values=category_colors, labels=category_labels)
 
 ggsave(path = "comments_files/figure-svg/", filename = "turnover_distribution.svg", device='svg')
