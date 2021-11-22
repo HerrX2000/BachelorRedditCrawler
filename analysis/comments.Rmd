@@ -132,7 +132,7 @@ df <- df[!(df$stickied == TRUE),]
 
 str(df)
 nrow(df)
-write.csv(df, "./output/comments_2020_raw_anonymized.csv")
+write.csv(df, "./output/comments_2020_raw_metadata.csv")
 ```
 
 
@@ -182,10 +182,10 @@ nrow(df[df$removed == FALSE & df$deleted == FALSE & is.na(df$author),]) / nrow(d
 
 for(subreddit in levels(df$subreddit)){
   print(subreddit)
-  writeLines(paste("Locked %:\t\t",nrow(df[df$locked == TRUE & df$subreddit == subreddit,]) / nrow(df)))
-  writeLines(paste("Removed %:\t\t",nrow(df[df$removed == TRUE & df$subreddit == subreddit,]) / nrow(df)))
-  writeLines(paste("Deleted %:\t\t",nrow(df[df$deleted == TRUE & df$subreddit == subreddit,]) / nrow(df)))
-  writeLines(paste("Acccount deleted %:\t",nrow(df[df$removed == FALSE & df$deleted == FALSE & is.na(df$author) & df$subreddit == subreddit,]) / nrow(df)))
+  writeLines(paste("Locked %:\t\t",nrow(df[df$locked == TRUE & df$subreddit == subreddit,]) / nrow(df[df$subreddit == subreddit,])))
+  writeLines(paste("Removed %:\t\t",nrow(df[df$removed == TRUE & df$subreddit == subreddit,]) / nrow(df[df$subreddit == subreddit,])))
+  writeLines(paste("Deleted %:\t\t",nrow(df[df$deleted == TRUE & df$subreddit == subreddit,]) / nrow(df[df$subreddit == subreddit,])))
+  writeLines(paste("Acccount deleted %:\t",nrow(df[df$removed == FALSE & df$deleted == FALSE & is.na(df$author) & df$subreddit == subreddit,]) / nrow(df[df$subreddit == subreddit,])))
 }
 ```
 
@@ -289,7 +289,6 @@ for (subreddit in levels(df_with_acc$subreddit)){
                    id=id,
                    interval=interval,
                    gini_comment_dist=gini_comment_dist,
-                   gini_score_dist=gini_score_dist,
                    subreddit=subreddit,
                    contributors = length(unique(df_7day$author)),
                    total_comments = length(df_7day$id),
@@ -442,7 +441,7 @@ ggplot(df_subs, aes(x=contributors, y=gini_comment_dist, group = NULL, color = N
   geom_smooth(method='lm', formula= y~x) +
   scale_x_continuous(trans='log2') +
   ylim(0,1) +
-  ggtitle("UC predicting Concentration of Participation")+
+  ggtitle("Group size and concentration of participation")+
   ylab("Concentration of Participation (Gini)") +
   xlab("Unique Contributors/Interval")+
   scale_color_manual(name = "Category", values=category_colors, labels=category_labels)
@@ -482,15 +481,19 @@ ggplot(df_subs[df_subs$is_country_native,], aes(x=contributors, y=gini_comment_d
   ylab("Concentration of Participation (Gini)") +
   xlab("Unique Contributors/Interval")
 
-#Graph with only with cities native
+#Graph with only with cities 
 ggplot(df_subs[df_subs$is_city,], aes(x=contributors, y=gini_comment_dist, group = NULL, color = NULL)) +
   geom_point(aes(color=factor(subreddit))) +
   geom_smooth(method='lm', formula= y~x) +
   scale_x_continuous(trans='log2') +
   ylim(0,1) +
-  ggtitle("City")+
+  ggtitle("Concentration of participation and UC within “City” Category")+
   ylab("Concentration of Participation (Gini)") +
   xlab("Unique Contributors/Interval")
+
+
+ggsave(path = "comments_files/figure-svg/", filename = "gini_distribution_cities.svg", device='svg')
+ggsave(path = "comments_files/figure-png/", filename = "gini_distribution_cities.png", device='png')
 
 ```
 ### Concentration of Participation Stats

@@ -118,7 +118,7 @@ df2 <- df2[!(df2$stickied == TRUE),]
 nrow(df2)
 
 df2$id <- NULL 
-write.csv(df2, "./output/posts_2020_raw_anonymized.csv")
+write.csv(df2, "./output/posts_2020_raw_metadata.csv")
 ```
 
 
@@ -133,10 +133,10 @@ nrow(df2[df2$removed == FALSE & df2$deleted == FALSE & is.na(df2$author),]) / nr
 
 for(subreddit in levels(df2$subreddit)){
   print(subreddit)
-  writeLines(paste("Locked %:\t\t",nrow(df2[df2$locked == TRUE & df2$subreddit == subreddit,]) / nrow(df2)))
-  writeLines(paste("Removed %:\t\t",nrow(df2[df2$removed == TRUE & df2$subreddit == subreddit,]) / nrow(df2)))
-  writeLines(paste("Deleted %:\t\t",nrow(df2[df2$deleted == TRUE & df2$subreddit == subreddit,]) / nrow(df2)))
-  writeLines(paste("Acccount deleted %:\t",nrow(df2[df2$removed == FALSE & df2$deleted == FALSE & is.na(df2$author) & df2$subreddit == subreddit,]) / nrow(df2)))
+  writeLines(paste("Locked %:\t\t",nrow(df2[df2$locked == TRUE & df2$subreddit == subreddit,]) / nrow(df2[df2$subreddit == subreddit,])))
+  writeLines(paste("Removed %:\t\t",nrow(df2[df2$removed == TRUE & df2$subreddit == subreddit,]) / nrow(df2[df2$subreddit == subreddit,])))
+  writeLines(paste("Deleted %:\t\t",nrow(df2[df2$deleted == TRUE & df2$subreddit == subreddit,]) / nrow(df2[df2$subreddit == subreddit,])))
+  writeLines(paste("Acccount deleted %:\t",nrow(df2[df2$removed == FALSE & df2$deleted == FALSE & is.na(df2$author) & df2$subreddit == subreddit,]) / nrow(df2[df2$subreddit == subreddit,])))
 }
 ```
 

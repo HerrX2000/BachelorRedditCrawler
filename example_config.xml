@@ -1,11 +1,7 @@
 <config> 
     <auth>
         <user_agent>praw_overflow</user_agent>
-        <client_id>SLcx5BHOfpE3bQ</client_id>
-        <client_secret>fowGwZ-GXfjG2TKpzp3u0gH8HeINgQ</client_secret>
+        <client_id>enter-client-secret-here</client_id>
+        <client_secret>enter-client-secret-here</client_secret>
     </auth>
-    <setting>
-        <start_date>2020-01-01</start_date>
-        <end_date>2020-12-31</end_date>
-    </setting>
 </config>
